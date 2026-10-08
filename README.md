@@ -1,6 +1,6 @@
 # TaskSure
 
-A working employee task management app for liquor-store operations. Laravel 13 / PHP 8.4, MySQL 8.4, Blade, Tailwind 4, FullCalendar, Dompdf and PhpSpreadsheet. Designed for approximately 50 employees using phones and supervisors using laptops.
+A working employee task management app for liquor-store operations. Laravel 13 / PHP 8.4, PostgreSQL, Blade, Tailwind 4, FullCalendar, Dompdf and PhpSpreadsheet. Designed for approximately 50 employees using phones and supervisors using laptops. MySQL remains supported for the existing cloud development fixture.
 
 ## What works
 
@@ -14,14 +14,14 @@ A working employee task management app for liquor-store operations. Laravel 13 /
 
 ## Local setup with PHP installed
 
-Prerequisites: PHP 8.4 (pdo_mysql, pdo_sqlite, mbstring, gd, zip, XML, cURL), Composer 2, Node 24, MySQL 8.4. PHP 8.4 is the tested runtime for the locked dependencies.
+Prerequisites: PHP 8.4 (pdo_pgsql, pdo_sqlite, mbstring, gd, zip, XML, cURL), Composer 2, Node 24, PostgreSQL. PHP 8.4 is the tested runtime for the locked dependencies.
 
 ```sh
 composer install
 npm ci
 npm run build
 cp .env.example .env
-# Set DB_* to your local MySQL database and set UPLOAD_STORAGE_PATH to an absolute private directory.
+# Set DB_* to your local PostgreSQL database and set UPLOAD_STORAGE_PATH to an absolute private directory.
 php artisan key:generate
 php artisan migrate
 php artisan db:seed
@@ -38,7 +38,7 @@ bash scripts/cloud-setup.sh
 bash scripts/cloud-start.sh
 ```
 
-These use Docker for PHP/MySQL and the host Node 24 runtime. Local configuration is ignored, generated passwords are not printed, and existing `.env` files are preserved. The web process listens on port 8080. Web logs are available through `docker logs tasksure-dev`; queue/scheduler logs are in `storage/logs/worker.log` and `scheduler.log`. All cloud development processes share one PHP container to accommodate the cloud Docker driver; production uses separate Railway services. Use the existing checkout; cloud tasks are already isolated.
+These preserve the existing Docker PHP/MySQL development fixture and use the host Node 24 runtime. Railway and Docker Compose use PostgreSQL; the PHP images include both database drivers. Local configuration is ignored, generated passwords are not printed, and existing `.env` files are preserved. The web process listens on port 8080. Web logs are available through `docker logs tasksure-dev`; queue/scheduler logs are in `storage/logs/worker.log` and `scheduler.log`. All cloud development processes share one PHP container to accommodate the cloud Docker driver; production uses separate Railway services. Use the existing checkout; cloud tasks are already isolated.
 
 Run Artisan through the development PHP container:
 
@@ -67,13 +67,13 @@ vendor/bin/pint --test
 npm run check:railway
 ```
 
-The default suite uses isolated in-memory SQLite. Also run on a **disposable** MySQL database; the test suite migrates and resets it:
+The default suite uses isolated in-memory SQLite. Also run on a **disposable** PostgreSQL database; the test suite migrates and resets it:
 
 ```sh
-DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=tasksure_test DB_USERNAME=tasksure DB_PASSWORD="your-local-test-password" php artisan test
+DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=tasksure_test DB_USERNAME=tasksure DB_PASSWORD="your-local-test-password" php artisan test
 ```
 
-Never point tests at the working or production database. CI runs both database engines. See [validation](docs/VALIDATION.md) for checks actually performed.
+For MySQL compatibility checks use the same command with `DB_CONNECTION=mysql` and `DB_PORT=3306`, against a separate test database. Never point tests at the working or production database. CI runs SQLite, PostgreSQL and MySQL. See [validation](docs/VALIDATION.md) for checks actually performed.
 
 ## Reporting definitions
 
@@ -87,4 +87,4 @@ WhatsApp is intentionally unconfigured. `App\Contracts\WhatsAppGateway` is a rep
 
 ## Deployment and backups
 
-See [Railway deployment](docs/DEPLOYMENT.md) and [backup/restore](docs/BACKUPS.md). Source, migrations, tests and configuration are delivered in this checkout. Applying Railway infrastructure and publishing a release are separate steps.
+See the numbered [Railway/PostgreSQL deployment checklist](docs/DEPLOYMENT.md) and [backup/restore](docs/BACKUPS.md). [.env.railway.example](.env.railway.example) supplies Railway variable references without credentials. Source, migrations, tests and configuration are delivered in this checkout. Applying Railway infrastructure is a separate step.

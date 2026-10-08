@@ -4,6 +4,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: tasksure_test
+          POSTGRES_USER: tasksure
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: --health-cmd="pg_isready -U tasksure -d tasksure_test" --health-interval=10s --health-timeout=5s --health-retries=10
       mysql:
         image: mysql:8.4
         env:
@@ -16,13 +24,21 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: pdo_mysql, pdo_sqlite, mbstring, gd, zip
+          extensions: pdo_pgsql, pdo_mysql, pdo_sqlite, mbstring, gd, zip
       - uses: actions/setup-node@v4
         with: {node-version: '24', cache: npm}
       - run: composer install --no-interaction --prefer-dist
       - run: npm ci && npm run build
       - run: cp .env.example .env && php artisan key:generate
       - run: php artisan test
+      - run: php artisan test
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: tasksure_test
+          DB_USERNAME: tasksure
+          DB_PASSWORD: ci-only-password
       - run: php artisan test
         env:
           DB_CONNECTION: mysql
@@ -32,4 +48,4 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: ci-only-password
       - run: vendor/bin/pint --test
-      - run: node scripts/check-railway.mjs
+      - run: npm run check:railway

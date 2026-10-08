@@ -1,55 +1,96 @@
-# Railway deployment
+# Deploy TaskSure on Railway with PostgreSQL
 
-## Documentation checked
+Use the Railway dashboard checklist below. The repository includes a Dockerfile that builds the frontend and runs Nginx/PHP-FPM; no custom build or start command is needed.
 
-Official Laravel 13 release/configuration documentation and Railway Laravel, volumes and infrastructure-as-code references were checked on 8 October 2026 via the official `laravel/docs` and `railwayapp/docs` GitHub repositories (the documentation websites were blocked by the cloud network policy).
+## Deployment checklist
 
-- https://laravel.com/docs/13.x/releases
+1. **Open your Railway project and check PostgreSQL.** Use your existing PostgreSQL service in the same project/environment. Create one with **New → Database → PostgreSQL** only if you do not already have one. Back up an existing database before migrations. The examples use the service name `Postgres`; replace that name in variable references if yours differs.
+
+2. **Connect the web service to GitHub.** Choose **New → GitHub Repo → Juandre-Nordx/TaskSure**, branch `main`, and name the service `web`. Use the repository root and the included `Dockerfile`. Configure the remaining settings before deploying. Leave custom build/start commands empty: `PROCESS_ROLE` selects the process through the Docker entrypoint.
+
+3. **Set production variables.** Generate a key in a trusted local checkout with dependencies installed:
+
+   ```sh
+   php artisan key:generate --show
+   ```
+
+   If local PHP is unavailable, this Docker command generates the same 32-byte key format without needing the app:
+
+   ```sh
+   docker run --rm php:8.4-cli php -r 'echo "base64:".base64_encode(random_bytes(32)).PHP_EOL;'
+   ```
+
+   In `web` **Variables → Raw Editor**, paste [.env.railway.example](../.env.railway.example). Replace `APP_KEY` with that key and `APP_URL` with your HTTPS web hostname. Database values must reference your existing PostgreSQL service:
+
+   ```dotenv
+   DB_CONNECTION=pgsql
+   DB_HOST=${{Postgres.PGHOST}}
+   DB_PORT=${{Postgres.PGPORT}}
+   DB_DATABASE=${{Postgres.PGDATABASE}}
+   DB_USERNAME=${{Postgres.PGUSER}}
+   DB_PASSWORD=${{Postgres.PGPASSWORD}}
+   ```
+
+   Use Railway's private database host. Keep `APP_ENV=production`, `APP_DEBUG=false`, `SESSION_SECURE_COOKIE=true`, database sessions/cache/queues, and `LOG_CHANNEL=stderr`. Remove a conflicting `DB_URL` if one was previously configured; Laravel gives it precedence over separate database fields. Never commit a production `.env` or set `DEMO_PASSWORD` in production.
+
+4. **Attach private file storage to web.** Add a persistent volume mounted at `/data`, with `UPLOAD_STORAGE_PATH=/data/uploads`. Keep web at **one replica** and in the volume's region. Uploaded evidence is served through authenticated policy checks. The entrypoint creates the directory at runtime because Railway volumes are unavailable during builds and pre-deploy commands.
+
+5. **Configure migrations and health.** On `web`, set **Pre-Deploy Command** to:
+
+   ```sh
+   php artisan migrate --force && php artisan db:seed --force
+   ```
+
+   The default seeder creates task categories only. Set **Healthcheck Path** to `/health` and **Healthcheck Timeout** to `120` seconds. This endpoint checks database connectivity and private storage writability; `/up` checks framework boot only. Enable an on-failure restart policy.
+
+6. **Set the public URL and deploy web.** In **Settings → Networking → Generate Domain**, use target port `8080` (the template sets `PORT=8080`). Put the resulting `https://…` URL in `APP_URL` and deploy/redeploy. Confirm the migration command succeeds and `/health` returns HTTP 200. A custom domain can be added later; update `APP_URL` and redeploy all app services when changing it.
+
+7. **Create the worker and scheduler services.** Add two services from the same GitHub repository/branch and Dockerfile. Give both the same `APP_KEY`, `APP_URL`, PostgreSQL references, session/cache/queue and mail variables as web. Set `PROCESS_ROLE=worker` on one and `PROCESS_ROLE=scheduler` on the other. Keep one replica each and an on-failure restart policy. Set no pre-deploy command or HTTP healthcheck on these two services. They need no public domain or evidence volume. Deploy them after web's migrations succeed. Do not enable service sleeping/serverless mode on these long-running processes.
+
+8. **Create the first administrator.** Install/login to the Railway CLI and link this project/environment. Open the running web container:
+
+   ```sh
+   railway ssh --service web
+   php artisan tasksure:admin owner@example.com "Store Owner"
+   ```
+
+   The command asks for the password without displaying it. `railway run` runs commands on your local machine, so use SSH for commands inside the deployed app. No public registration or default production password is provided.
+
+9. **Test the deployed workflow.** Sign in over HTTPS, create a manager and employee, assign/start a task, upload an image/PDF, submit it, approve it, and export a report. Restart web and confirm the uploaded file remains available. Check worker/scheduler logs, `php artisan queue:failed`, recurring tasks and reminder generation.
+
+10. **Enable email and backups.** Configure SMTP on all app services with `TASK_EMAIL_ENABLED=true`, `MAIL_MAILER=smtp`, `MAIL_SCHEME`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, and `MAIL_FROM_NAME`. Use the provider's TLS settings and verified sender. Test password reset and actual reminder receipt. Without SMTP, in-app notifications work but external email does not. WhatsApp needs a real provider adapter; it is currently unconfigured. Enable backups for both PostgreSQL and the evidence volume, then rehearse [backup/restore](BACKUPS.md).
+
+## Service arrangement
+
+| Service | Process | Persistent storage |
+|---|---|---|
+| Your existing PostgreSQL service | Database | Railway database volume |
+| web, one replica | Nginx + PHP-FPM | Private volume `/data` |
+| worker, one replica | `php artisan queue:work database --sleep=3 --tries=3 --timeout=90` | PostgreSQL queue; no evidence volume |
+| scheduler, one replica | `php artisan schedule:work` | PostgreSQL locks/state; no evidence volume |
+
+A volume belongs to one service. Workers and scheduled commands use metadata and do not read uploads. Move evidence to permission-controlled object storage before scaling web horizontally. Application timestamps are UTC; business input/display uses Africa/Johannesburg.
+
+## Optional infrastructure as code
+
+`.railway/railway.ts` uses the official `railway/iac` SDK and creates PostgreSQL, an evidence volume, web, worker and scheduler. It is intended for a **new project**. For your existing PostgreSQL project, use the dashboard checklist above or import/adapt resources before using IaC; applying it unchanged can create a second database.
+
+For a new project, install/link the Railway CLI, run `npm ci`, set shared variables `APP_KEY` and `APP_URL`, and inspect `railway config plan` before `railway config apply`. Review database references, GitHub source and volume region. Preserve/reference any SMTP overrides before future applies. Current Railway documentation deprecates `railway.json`/`railway.toml` for new services, so those files are not supplied.
+
+## Local Docker Compose
+
+Copy `.env.example` to `.env` if you do not have local configuration, generate a secure `APP_KEY` and `DB_PASSWORD`, and keep `APP_ENV=local`. Run `docker compose up --build -d db web`, then `docker compose exec web php artisan migrate` and `docker compose exec web php artisan db:seed`. Create an administrator and start `docker compose up -d worker scheduler`. Compose uses PostgreSQL 18 with separate named database/evidence volumes. Existing cloud-workspace scripts retain their MySQL development fixture; Compose does not migrate that data. `docker compose down` retains volumes; `down -v` deletes them.
+
+## Documentation and validation
+
+Official Laravel 13 configuration and Railway Laravel, PostgreSQL, volumes and infrastructure-as-code references were checked on 8 October 2026 through the official `laravel/docs` and `railwayapp/docs` GitHub repositories:
+
 - https://laravel.com/docs/13.x/configuration
 - https://docs.railway.com/guides/laravel
+- https://docs.railway.com/databases/postgresql
 - https://docs.railway.com/volumes
 - https://docs.railway.com/infrastructure-as-code
 - https://docs.railway.com/infrastructure-as-code/reference
 - https://docs.railway.com/deployments/healthchecks
 
-Current Railway documentation deprecates `railway.json`/`railway.toml` for new services, so this project supplies `.railway/railway.ts` using the official `railway/iac` SDK. Always preview the plan using your current Railway CLI before applying. SDK/CLI versions can change; the lockfile pins the SDK used here.
-
-## Deliberate service arrangement
-
-| Service | Role | Persistent storage |
-|---|---|---|
-| mysql | MySQL database | Railway-managed database storage |
-| web (one replica) | Nginx + PHP-FPM, sessions, authenticated evidence upload/download | Private volume `/data`, files in `/data/uploads` |
-| worker (one replica) | Database queue; outbound email only | MySQL; no access to evidence volume |
-| scheduler (one replica) | `schedule:work`; recurring generation and reminders every minute | MySQL locks/state; no access to evidence volume |
-
-A volume belongs to one service. Workers and scheduled commands use metadata only; they never read uploads. Do not scale web past one replica with this local-volume architecture. Move evidence to permission-controlled object storage before horizontal scaling. Railway volumes are mounted only at runtime, not during builds or pre-deploy commands. Upload directory creation/ownership is in the web entrypoint. No public storage symlink is created.
-
-## Prepare and apply
-
-1. Push/review this code in the selected repository when authorized. Do not deploy from an empty remote branch.
-2. Install the current Railway CLI, log in and link the intended project/environment. Run `npm ci` locally for the SDK.
-3. Generate an application key with `php artisan key:generate --show` in a trusted terminal. Store it securely as the Railway **shared variable** `APP_KEY`. Set shared `APP_URL` to the intended HTTPS hostname (use your generated Railway domain, then update and redeploy). Never commit either credential or production `.env`.
-4. Run `railway config plan` to inspect `.railway/railway.ts`. Check the GitHub source, branch, volume region and database references. `railway config apply` changes resources and needs the deployment operator's approval.
-5. The Dockerfile installs frozen PHP/Node dependencies and compiles assets. All three app services use that image and select `PROCESS_ROLE=web`, `worker` or `scheduler`. The web pre-deploy command runs migrations and seeds **categories only**. No uploads are touched by pre-deploy.
-6. Deploy the database and web first; after migrations succeed deploy/start worker and scheduler. If initial parallel deployments started early, redeploy those services after the schema exists. Generate web public networking on its `PORT` (default 8080). Health path is `/health` with a 120-second startup allowance; it checks database connectivity and private upload-directory writability. `/up` only checks framework boot.
-7. Create the first administrator inside web with `php artisan tasksure:admin owner@example.com "Store Owner"`, using Railway SSH and the hidden password prompt. Never use the demo seeder or migrate a demo database into production.
-8. Confirm HTTPS sign-in, a real employee assignment, upload, submission, review and export. Inspect service logs and queue failures. Run a reminder and recurring task smoke check. Verify upload retrieval after restarting web.
-
-The IaC definition was evaluated and type-checked locally; it was not applied to a Railway account. Railway credentials are not required for developing this app. The Nginx/PHP-FPM image was built and locally smoke-tested against MySQL; a live Railway deployment remains the operator's step.
-
-## Variables
-
-Production defaults are in `.railway/railway.ts`. Keep `APP_ENV=production`, `APP_DEBUG=false`, `SESSION_SECURE_COOKIE=true`, database sessions/cache/queues, and `LOG_CHANNEL=stderr`. Laravel uses UTC consistently; business timezone is fixed in `config/tasksure.php`. Configure `UPLOAD_STORAGE_PATH=/data/uploads`, `UPLOAD_MAX_KB` (default 10240), and `REMINDER_MINUTES` (default 60). The owner can override reminder minutes in the store settings screen.
-
-SMTP setup requires a real `MAIL_MAILER` (typically smtp), `MAIL_SCHEME`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` and `MAIL_FROM_NAME`, with `TASK_EMAIL_ENABLED=true` for optional reminder delivery. Set these securely on web and worker; use the same `APP_KEY` and `APP_URL` across all app services. Adjust IaC to preserve/reference these variables before the next apply so it does not restore email-disabled defaults. Test delivery and password reset through the actual provider. Provider acceptance is not proof of recipient receipt.
-
-Do not set `DEMO_PASSWORD` in production. No credentials are supplied in source. MySQL variables reference Railway's database helper, using its private host.
-
-## Operations
-
-The web process uses Nginx and PHP-FPM rather than Laravel's development server. Nginx accepts `PORT`; PHP and Nginx body limits derive from the configured upload limit with multipart headroom. Failures are logged to stderr and Railway service logs; application error details stay hidden in production. Add platform alerts for health failures, queue backlog/failed jobs and volume capacity.
-
-Back up before schema changes. Keep migrations backward compatible across rolling app releases. Do not run `migrate:fresh`, `db:wipe`, demo seeders or development tests against production. Queue workers restart with each deployment; run `queue:restart` after code changes when manually managing them. Monitor the scheduler logs for periodic execution. Generation catches up at most 366 occurrences per template per run; subsequent runs continue catching up, with deduplication.
-
-For local Docker deployment, copy `.env.example`, generate a secure `APP_KEY` and `DB_PASSWORD`, set `APP_ENV=local`, then `docker compose up --build -d db web`. Run `docker compose exec web php artisan migrate` and `docker compose exec web php artisan db:seed`, then `docker compose up -d worker scheduler`. This uses named database and evidence volumes. `docker compose down` retains them; `down -v` destroys them.
+See [validation](VALIDATION.md) for checks actually performed. A live Railway deployment and production backup/restore remain to be performed in your account.

@@ -1,35 +1,50 @@
 # Backup and restore
 
-Back up **both MySQL and evidence**. File rows, paths, submissions and history are in MySQL; files are on the web volume. Keep the original production APP_KEY securely alongside a separately protected recovery plan (encrypted sessions and future encrypted app data depend on it). Backups contain employee information and evidence: encrypt them, restrict access, and keep an off-platform copy with a retention policy.
+Back up **both PostgreSQL and evidence**. File metadata, submissions and history are in PostgreSQL; files are on web's private volume. Keep the original production `APP_KEY` securely in your recovery plan. Encrypt backups, restrict access, and keep an off-platform copy with a retention policy.
 
 ## Consistent backup
 
-1. Stop or scale down the worker and scheduler. Put web in maintenance mode (`php artisan down --retry=60`) and wait for in-flight requests/jobs to finish. This freezes file/row relationships. Record the release SHA, time and service variables without logging secrets.
-2. Back up MySQL on its database service using `mysqldump --single-transaction --no-tablespaces --routines --triggers --events`. Use a restricted credential file or `MYSQL_PWD` supplied from the service environment, never passwords as command arguments. For Railway's MySQL service, its own container contains the MySQL client. For example, from a protected local terminal (adjust service and database variable names to those provided by your template):
+1. Stop the worker and scheduler. Put web in maintenance mode (`php artisan down --retry=60`) and wait for in-flight requests/jobs to finish. This freezes file/row relationships. Record the release SHA and backup time without logging secrets.
+
+2. Use a PostgreSQL client of the same or newer major version than the server. From a protected backup machine, configure `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` and `PGPASSWORD` securely for the database's external endpoint, or run through a secure tunnel. Railway's private host works only within its private network. Use a protected password file or environment, not a password in command arguments. Apply the provider's TLS requirements. Create a custom-format dump:
 
    ```sh
    umask 077
-   railway ssh --service mysql -- sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -u root --single-transaction --no-tablespaces --routines --triggers --events "$MYSQL_DATABASE"' > tasksure.sql
+   pg_dump --format=custom --no-owner --no-acl --file=tasksure.dump
+   pg_restore --list tasksure.dump > tasksure-dump-contents.txt
    ```
 
-   Verify the dump is nonempty and has the expected tables; confirm the command exited successfully. Railway SSH may allocate a terminal depending on CLI options: use its documented noninteractive mode and ensure diagnostics are not mixed into the SQL stream. Alternatively create the SQL file inside the database service and download it securely with your backup tooling. Never treat a log capture as a verified dump.
-3. On web, archive the configured private directory to the **parent** volume directory:
+   Confirm a successful exit, a nonempty artifact, and expected tables. Do not capture a binary dump through an interactive SSH terminal. A database-service job can instead create a dump file and transfer it securely with your backup tooling.
+
+3. Archive evidence on web into the parent volume directory:
 
    ```sh
    railway ssh --service web -- sh -c 'tar -C "$UPLOAD_STORAGE_PATH" -czf /data/evidence-backup.tar.gz .'
    railway volume files download /evidence-backup.tar.gz ./evidence-backup.tar.gz
    ```
 
-   Select web's volume when prompted. The archive must not be created inside the evidence directory itself. Inspect the archive listing and expected file counts.
-4. Calculate SHA-256 checksums on both downloaded artifacts. Encrypt and transfer the SQL, archive and manifest off-platform. Enable Railway scheduled backups for MySQL/evidence volumes as an additional recovery layer; volume backups alone are not coordinated SQL-and-files backups.
-5. Return web with `php artisan up`, restore worker/scheduler replicas, and check `/health`, sign-in and a private evidence download. Remove temporary backup artifacts from live volumes after verifying the protected copy.
+   Link/select web's volume when prompted. Do not create the archive inside the evidence directory itself. Inspect the archive listing and expected file counts.
+
+4. Calculate SHA-256 checksums for both artifacts. Encrypt and transfer the dump, archive and manifest off-platform. Enable Railway scheduled backups for PostgreSQL and evidence volumes as an additional layer; independent volume snapshots are not coordinated database-and-file backups.
+
+5. Run `php artisan up`, restart worker/scheduler, and check `/health`, sign-in and a private evidence download. Remove temporary artifacts from live volumes after verifying the protected copy.
 
 ## Restore rehearsal / recovery
 
-1. Use a separate Railway project or disposable local database/volume. Stop all app services during production recovery. Restore the original release and APP_KEY; set secure environment variables without copying secrets into source.
-2. Restore SQL into the **empty** target database using the MySQL client with credentials from a protected file/environment. Do not run demo seeders. Inspect users, tasks, submissions, attachments, deadline changes and alerts.
-3. Validate the archive checksum. Extract only your own verified archive into the configured private upload directory, outside public/. Check its paths before extraction. Set ownership for the web PHP-FPM user (`www-data`) and ensure parent directories can be traversed.
-4. Run `php artisan migrate --force` only if the restored release needs newer migrations. Start web, check `/health`, authenticate as an allowed user and open representative old image/PDF evidence. Compare attachment metadata, byte sizes and stored files. Check that a different employee is denied access.
-5. Start worker and scheduler only after confirming recovery. Be aware overdue reminders and recurring catch-up may run immediately. Recheck failed jobs and recurrence deduplication. Record actual recovery duration, data loss window and discrepancies.
+1. Use a separate project or disposable database/volume for rehearsals. Stop all app services during production recovery. Restore the original release and `APP_KEY`; configure target `PG*` and app variables securely.
 
-The app's files were verified across a local web-container restart, and its automated suite checks durable storage access. A live Railway backup/restore rehearsal has not been performed; schedule one before relying on this recovery procedure.
+2. Restore into an **empty** target PostgreSQL database:
+
+   ```sh
+   pg_restore --exit-on-error --no-owner --no-acl --dbname="$PGDATABASE" tasksure.dump
+   ```
+
+   Connection credentials come from the protected environment/password file. Do not run demo seeders. Inspect users, tasks, submissions, attachments, deadline changes and alerts.
+
+3. Validate the evidence archive checksum and paths. Extract your own verified archive into the private upload directory, outside `public/`. Set ownership to `www-data` and ensure parent directories are traversable.
+
+4. Run `php artisan migrate --force` if the restored release needs newer migrations. Start web, check `/health`, authenticate and open representative old image/PDF evidence. Compare metadata, byte sizes and stored files. Check another employee is denied access.
+
+5. Start worker/scheduler after confirming recovery. Overdue reminders and recurring catch-up may run immediately. Recheck failed jobs and recurrence deduplication. Record recovery duration, data loss window and discrepancies.
+
+The earlier MySQL cloud fixture must be backed up with MySQL tooling if needed; PostgreSQL tools do not convert MySQL data. Existing data migration is a separate operation. Evidence persistence was verified locally, but a live Railway backup/restore rehearsal remains to be performed.

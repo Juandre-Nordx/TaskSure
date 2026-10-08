@@ -1,14 +1,14 @@
-import { defineRailway, project, service, mysql, volume, github } from 'railway/iac';
+import { defineRailway, project, service, postgres, volume, github } from 'railway/iac';
 export default defineRailway((ctx) => {
- const db = mysql('mysql');
+ const db = postgres('postgres');
  const evidence = volume('task-evidence', {region:'europe-west4',sizeMB:10240});
  const source = github('Juandre-Nordx/TaskSure', {branch:'main'});
  const env = {
   APP_NAME:'TaskSure', APP_ENV:'production', APP_DEBUG:'false',
   APP_KEY:ctx.shared.APP_KEY, APP_URL:ctx.shared.APP_URL,
-  DB_CONNECTION:'mysql', DB_HOST:db.env.MYSQLHOST, DB_PORT:db.env.MYSQLPORT,
-  DB_DATABASE:db.env.MYSQLDATABASE, DB_USERNAME:db.env.MYSQLUSER, DB_PASSWORD:db.env.MYSQLPASSWORD,
-  SESSION_DRIVER:'database', SESSION_SECURE_COOKIE:'true', CACHE_STORE:'database', QUEUE_CONNECTION:'database',
+  DB_CONNECTION:'pgsql', DB_HOST:db.env.PGHOST, DB_PORT:db.env.PGPORT,
+  DB_DATABASE:db.env.PGDATABASE, DB_USERNAME:db.env.PGUSER, DB_PASSWORD:db.env.PGPASSWORD,
+  SESSION_DRIVER:'database', SESSION_ENCRYPT:'true', SESSION_SECURE_COOKIE:'true', CACHE_STORE:'database', QUEUE_CONNECTION:'database',
   LOG_CHANNEL:'stderr', TASK_EMAIL_ENABLED:'false', MAIL_MAILER:'log', UPLOAD_MAX_KB:'10240', REMINDER_MINUTES:'60',
  };
  const build = {builder:'DOCKERFILE',dockerfilePath:'Dockerfile'} as const;

@@ -2,9 +2,12 @@
 
 Checked in the cloud workspace on 8 October 2026.
 
-- Laravel 13.35.0, PHP 8.4.26 and MySQL 8.4; dependencies installed from frozen Composer/npm lockfiles with TLS/signature verification intact. GitHub archives use official codeload URLs because api.github.com was blocked.
+- Laravel 13.35.0, PHP 8.4.26, PostgreSQL 18 and MySQL 8.4; dependencies installed from frozen Composer/npm lockfiles with TLS/signature verification intact. GitHub archives use official codeload URLs because api.github.com was blocked.
 - `php artisan test`: **16 passed, 133 assertions** using in-memory SQLite.
 - MySQL test run against separate `tasksure_test`: **16 passed, 133 assertions**.
+- PostgreSQL test run against a disposable PostgreSQL 18 `tasksure_test`: **16 passed, 133 assertions**. SQLite and MySQL checks were repeated after adding PostgreSQL support, with the same results.
+- Both PHP Dockerfiles include `pdo_pgsql`, `pdo_mysql` and `pdo_sqlite`. The updated development image and production Dockerfile built successfully. Compose configuration validated with PostgreSQL 18 and its version-specific `/var/lib/postgresql` volume mount.
+- The production image migrated a fresh PostgreSQL database and seeded six categories with zero user accounts. `/health` and `/login` returned HTTP 200; compiled assets were referenced. A queue-worker pass and both scheduled task-generation/reminder commands completed against PostgreSQL.
 - `npm run build`: production Tailwind/FullCalendar assets built.
 - `vendor/bin/pint --test`: passed.
 - `npm run check:railway`: TypeScript check and official SDK evaluation passed for five resources. No Railway infrastructure was applied.
@@ -18,4 +21,4 @@ Checked in the cloud workspace on 8 October 2026.
 
 The cloud Docker daemon uses `vfs`, so its full filesystem copies made multiple PHP containers/build layers exhaust disk space. Unused setup build cache and temporary production validation containers were cleaned up; cloud development runs web/worker/scheduler in one PHP container. Railway retains the documented separate-service arrangement. Nginx's absolute include path, image source-file permissions, and validated host/port forwarding were corrected during production smoke testing.
 
-Live Railway deployment, Railway volume restoration, external message delivery, and a complete live production backup/restore rehearsal were not performed. Publishing this cloud environment or restoring it in a new task has not been verified. Source is saved in this checkout and has not been pushed to GitHub.
+Live Railway deployment, Railway volume restoration, external message delivery, and a complete live production backup/restore rehearsal were not performed. Fresh-task restoration has not been independently verified. Application source was pushed to the GitHub repository; Railway deployment remains an operator step.

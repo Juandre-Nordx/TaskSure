@@ -19,7 +19,8 @@ if [[ ! -f .env ]]; then
  python3 - <<'LOCAL'
 from pathlib import Path
 import secrets
-p=Path('.env');s=p.read_text().replace('DB_PASSWORD=\n','DB_PASSWORD='+secrets.token_urlsafe(32)+'\n').replace('UPLOAD_STORAGE_PATH=/data/uploads','UPLOAD_STORAGE_PATH=/app/storage/app/evidence');p.write_text(s);p.chmod(0o600)
+# Preserve the cloud workspace's existing MySQL fixture; Railway and Compose use PostgreSQL.
+p=Path('.env');s=p.read_text().replace('DB_CONNECTION=pgsql','DB_CONNECTION=mysql').replace('DB_PORT=5432','DB_PORT=3306').replace('DB_PASSWORD=\n','DB_PASSWORD='+secrets.token_urlsafe(32)+'\n').replace('UPLOAD_STORAGE_PATH=/data/uploads','UPLOAD_STORAGE_PATH=/app/storage/app/evidence');p.write_text(s);p.chmod(0o600)
 LOCAL
 fi
 if ! grep -q '^APP_KEY=base64:' .env; then "${run[@]}" php artisan key:generate; fi
