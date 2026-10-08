@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+node_modules
+vendor
+public/build
+public/hot
+storage/logs/*
+storage/framework/*
+storage/app/*
+database/*.sqlite
+*.tar.gz
+*.sql
+coverage
+
+storage/cloud/
