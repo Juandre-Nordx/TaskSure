@@ -22,3 +22,11 @@ Checked in the cloud workspace on 8 October 2026.
 The cloud Docker daemon uses `vfs`, so its full filesystem copies made multiple PHP containers/build layers exhaust disk space. Unused setup build cache and temporary production validation containers were cleaned up; cloud development runs web/worker/scheduler in one PHP container. Railway retains the documented separate-service arrangement. Nginx's absolute include path, image source-file permissions, and validated host/port forwarding were corrected during production smoke testing.
 
 Live Railway deployment, Railway volume restoration, external message delivery, and a complete live production backup/restore rehearsal were not performed. Fresh-task restoration has not been independently verified. Application source was pushed to the GitHub repository; Railway deployment remains an operator step.
+
+## Railway Metal builder correction — 9 October 2026
+
+- Removed both secret mounts from the root Dockerfile after Railway rejected their syntax. Managed-cloud certificate secret mounts remain in the development Dockerfile only.
+- `docker build --check -f Dockerfile .` passed with no warnings. The production build steps completed locally with temporary certificate copies for the cloud proxy; TLS verification stayed enabled and those copies were outside the repository.
+- SQLite, MySQL and PostgreSQL each passed 16 tests / 133 assertions. Pint and the Railway configuration check passed; production frontend assets compiled during the image build.
+- The rebuilt production image migrated and seeded a fresh PostgreSQL database. `/health` and `/login` returned HTTP 200, all three PDO drivers were present, and queue-worker/scheduled task commands completed.
+- A successful Railway build/deployment still needs verification in the user's project after deploying this correction from `main`.

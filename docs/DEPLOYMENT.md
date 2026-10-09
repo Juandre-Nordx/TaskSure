@@ -2,6 +2,8 @@
 
 Use the Railway dashboard checklist below. The repository includes a Dockerfile that builds the frontend and runs Nginx/PHP-FPM; no custom build or start command is needed.
 
+The production Dockerfile uses ordinary `RUN` instructions because Railway's Metal builder accepts cache mounts only. Trusted certificate secret mounts are confined to `docker/Dockerfile.dev` for the managed cloud workspace. If a deployment reports `--mount=type=secret` as unsupported, deploy the latest `main` commit and confirm the service uses the root `Dockerfile`.
+
 ## Deployment checklist
 
 1. **Open your Railway project and check PostgreSQL.** Use your existing PostgreSQL service in the same project/environment. Create one with **New → Database → PostgreSQL** only if you do not already have one. Back up an existing database before migrations. The examples use the service name `Postgres`; replace that name in variable references if yours differs.

@@ -1,16 +1,13 @@
 FROM node:24-bookworm-slim AS assets
 WORKDIR /app
 COPY package*.json ./
-RUN --mount=type=secret,id=trusted_ca \
-    if [ -f /run/secrets/trusted_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/trusted_ca; fi; npm ci --ignore-scripts
+RUN npm ci --ignore-scripts
 COPY resources/ resources/
 COPY vite.config.js ./
 RUN npm run build
 
 FROM php:8.4-fpm AS runtime
-RUN --mount=type=secret,id=trusted_ca \
-    if [ -f /run/secrets/trusted_ca ]; then cp /run/secrets/trusted_ca /usr/local/share/ca-certificates/development-proxy.crt; update-ca-certificates; fi; \
-    sed -i s,http://deb.debian.org,https://deb.debian.org,g /etc/apt/sources.list.d/debian.sources; \
+RUN sed -i s,http://deb.debian.org,https://deb.debian.org,g /etc/apt/sources.list.d/debian.sources; \
     apt-get update && apt-get install -y --no-install-recommends nginx unzip git libpq-dev libsqlite3-dev libzip-dev libpng-dev libjpeg62-turbo-dev libfreetype6-dev libonig-dev libxml2-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j4 pdo_pgsql pdo_mysql pdo_sqlite mbstring zip gd pcntl \
