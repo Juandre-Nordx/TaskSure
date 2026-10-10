@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\SendAlertEmail;
+use App\Jobs\SendAlertPush;
 use App\Models\Alert;
 use App\Models\Task;
 use App\Models\User;
@@ -14,6 +15,9 @@ class AlertService
         $a = Alert::firstOrCreate(['dedupe_key' => $key], ['user_id' => $user->id, 'task_id' => $task?->id, 'type' => $type, 'message' => $message, 'email_status' => config('tasksure.email_enabled') ? 'queued' : 'disabled']);
         if ($a->wasRecentlyCreated && config('tasksure.email_enabled')) {
             SendAlertEmail::dispatch($a->id)->afterCommit();
+        }
+        if ($a->wasRecentlyCreated && config('mobile.push_enabled') && $user->role === 'employee') {
+            SendAlertPush::dispatch($a->id)->afterCommit();
         }
     }
 

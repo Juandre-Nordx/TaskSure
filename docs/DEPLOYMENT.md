@@ -64,6 +64,8 @@ The production Dockerfile uses ordinary `RUN` instructions because Railway's Met
 
 ## Service arrangement
 
+The employee mobile frontend is built separately from the Laravel Docker image and calls `/api/mobile/v1`. The new mobile migration runs through the same pre-deploy command. Native push uses the existing queue worker; configure CORS and Firebase/APNs credentials using the [mobile deployment checklist](MOBILE.md). Capacitor bundles local assets and does not point `server.url` at Railway.
+
 | Service | Process | Persistent storage |
 |---|---|---|
 | Your existing PostgreSQL service | Database | Railway database volume |

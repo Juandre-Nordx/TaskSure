@@ -27,3 +27,4 @@ Artisan::command('tasksure:admin {email} {name}', function () {
 });
 Schedule::command('tasks:generate')->everyMinute()->withoutOverlapping();
 Schedule::command('tasks:remind')->everyMinute()->withoutOverlapping();
+Schedule::command('sanctum:prune-expired --hours=24')->daily()->withoutOverlapping();

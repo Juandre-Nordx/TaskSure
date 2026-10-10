@@ -14,6 +14,8 @@ run=(docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD:/app" -w
 "${run[@]}" composer install --no-interaction --prefer-dist
 npm ci --cache /tmp/tasksure-npm
 npm run build
+npm ci --prefix mobile --cache /tmp/tasksure-npm
+npm run build --prefix mobile
 if [[ ! -f .env ]]; then
  cp .env.example .env
  python3 - <<'LOCAL'

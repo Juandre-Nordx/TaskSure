@@ -49,6 +49,7 @@ class AuthController extends Controller
         $status = Password::reset($r->only('email', 'password', 'password_confirmation', 'token'), function ($u, $p) {
             $u->forceFill(['password' => Hash::make($p), 'remember_token' => Str::random(60)])->save();
             DB::table('sessions')->where('user_id', $u->id)->delete();
+            $u->tokens()->delete();
         });
 
         return $status === Password::PASSWORD_RESET ? redirect('/login')->with('success', 'Password reset.') : back()->withErrors(['email' => __($status)]);

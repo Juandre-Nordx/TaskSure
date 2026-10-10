@@ -48,6 +48,7 @@ class AdminController extends Controller
                 $user->employees()->sync($scope);
             }if (! $user->active || isset($v['password'])) {
                 DB::table('sessions')->where('user_id', $user->id)->delete();
+                $user->tokens()->delete();
             }AccountAudit::create(['actor_id' => $r->user()->id, 'subject_id' => $user->id, 'action' => $new ? 'created' : 'updated', 'data' => ['before' => $before, 'after' => $user->only(['name', 'email', 'role', 'active']), 'scope_before' => $scopeBefore, 'scope_after' => $scope, 'password_changed' => isset($v['password'])]]);
         });
 

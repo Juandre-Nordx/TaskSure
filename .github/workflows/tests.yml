@@ -26,9 +26,16 @@ jobs:
           php-version: '8.4'
           extensions: pdo_pgsql, pdo_mysql, pdo_sqlite, mbstring, gd, zip
       - uses: actions/setup-node@v4
-        with: {node-version: '24', cache: npm}
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
       - run: composer install --no-interaction --prefer-dist
       - run: npm ci && npm run build
+      - run: npm ci && npm test && npm run build && npx cap sync
+        working-directory: mobile
       - run: cp .env.example .env && php artisan key:generate
       - run: php artisan test
       - run: php artisan test

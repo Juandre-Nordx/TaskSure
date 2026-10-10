@@ -1,0 +1,14 @@
+:root {
+  --forest: #153e35;
+  --ink: #18332c;
+  --paper: #f5f6f2;
+  --line: #dfe5df;
+  --muted: #6b7b73;
+}
+.fc {
+  --fc-border-color: #e2e6dd;
+  --fc-button-bg-color: #153e35;
+  --fc-button-border-color: #153e35;
+  --fc-button-hover-bg-color: #2b5146;
+  --fc-today-bg-color: #f0f6e8;
+}

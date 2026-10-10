@@ -14,3 +14,4 @@ database/*.sqlite
 coverage
 
 storage/cloud/
+mobile/

@@ -114,7 +114,7 @@ class TaskController extends Controller
                 });
         }
 
-        return back()->with('success', 'Task updated.');
+        return $r->expectsJson() ? response()->json(['message' => 'Task updated.']) : back()->with('success', 'Task updated.');
     }
 
     public function upload(Task $task, Request $r)
