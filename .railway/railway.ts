@@ -12,7 +12,7 @@ export default defineRailway((ctx) => {
   LOG_CHANNEL:'stderr', TASK_EMAIL_ENABLED:'false', MAIL_MAILER:'log', UPLOAD_MAX_KB:'10240', REMINDER_MINUTES:'60',
  };
  const build = {builder:'DOCKERFILE',dockerfilePath:'Dockerfile'} as const;
- const web = service('web',{source,build,env:{...env,PROCESS_ROLE:'web',UPLOAD_STORAGE_PATH:'/data/uploads'},replicas:1,regions:{'europe-west4':1},preDeploy:'php artisan migrate --force && php artisan db:seed --force',healthcheck:'/health',healthcheckTimeout:120,volumeMounts:{'/data':evidence}});
+ const web = service('web',{source,build,env:{...env,PROCESS_ROLE:'web',UPLOAD_STORAGE_PATH:'/data/uploads'},replicas:1,regions:{'europe-west4':1},preDeploy:'php artisan migrate --force && php artisan tasksure:mobile-schema',healthcheck:'/health',healthcheckTimeout:120,volumeMounts:{'/data':evidence}});
  const worker=service('worker',{source,build,env:{...env,PROCESS_ROLE:'worker'},replicas:1});
  const scheduler=service('scheduler',{source,build,env:{...env,PROCESS_ROLE:'scheduler'},replicas:1});
  return project('TaskSure',{resources:[db,evidence,web,worker,scheduler]});

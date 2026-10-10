@@ -40,10 +40,12 @@ The production Dockerfile uses ordinary `RUN` instructions because Railway's Met
 5. **Configure migrations and health.** On `web`, set **Pre-Deploy Command** to:
 
    ```sh
-   php artisan migrate --force && php artisan db:seed --force
+   php artisan migrate --force && php artisan tasksure:mobile-schema
    ```
 
-   The default seeder creates task categories only. Set **Healthcheck Path** to `/health` and **Healthcheck Timeout** to `120` seconds. This endpoint checks database connectivity and private storage writability; `/up` checks framework boot only. Enable an on-failure restart policy.
+   This runs pending forward migrations and a read-only check of the mobile tables in the database used by this service. Do not seed an existing client database. Existing accounts, passwords, tasks and historical evidence are retained. Migrations run in Railway's pre-deploy step, after the image build and before rollout; neither the Dockerfile nor the container entrypoint runs migrations. Set **Healthcheck Path** to `/health` and **Healthcheck Timeout** to `120` seconds. This endpoint checks database connectivity and private storage writability; `/up` checks framework boot only. Enable an on-failure restart policy.
+
+   For an installed app reporting a missing `personal_access_tokens` table, follow [the migration recovery checklist](MOBILE_MIGRATION_RECOVERY.md) before applying changes. It includes read-only connection/status checks and a targeted migration command without seeding.
 
 6. **Set the public URL and deploy web.** In **Settings → Networking → Generate Domain**, use target port `8080` (the template sets `PORT=8080`). Put the resulting `https://…` URL in `APP_URL` and deploy/redeploy. Confirm the migration command succeeds and `/health` returns HTTP 200. A custom domain can be added later; update `APP_URL` and redeploy all app services when changing it.
 

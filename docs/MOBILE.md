@@ -25,7 +25,7 @@ iOS requires macOS/Xcode compatible with Capacitor 8, an Apple developer team an
 ## Deploy the Laravel API to Railway
 
 1. Deploy the updated Laravel source using the existing root Dockerfile and PostgreSQL service. The Docker context excludes `mobile/`; the native frontend is built separately. Preserve the existing `APP_KEY`, database, evidence volume and dashboard configuration.
-2. Keep the existing pre-deploy command `php artisan migrate --force && php artisan db:seed --force`. The new migration adds Sanctum access tokens, push devices and delivery records; it does not replace task tables or data.
+2. Set the web pre-deploy command to `php artisan migrate --force && php artisan tasksure:mobile-schema`. The existing mobile migration adds Sanctum access tokens, push devices and delivery records; it does not replace task tables, accounts or data. Do not run production seeders. If employee login reports a missing token table, use the [migration recovery checklist](MOBILE_MIGRATION_RECOVERY.md).
 3. Set `MOBILE_ALLOWED_ORIGINS=capacitor://localhost,https://localhost` on web. Android uses `https://localhost` and iOS uses `capacitor://localhost`. If publishing a separate browser build, append its exact HTTPS origin. CORS uses bearer authorization and does not allow credentialed cookies or wildcard origins.
 4. Keep the existing database queue worker and scheduler running. Initially use `MOBILE_PUSH_ENABLED=false` on all services. Native push needs the provider configuration below; in-app alerts work independently.
 5. Confirm `/health` works and unauthenticated `GET /api/mobile/v1/me` returns JSON HTTP 401. Sign in with an existing active **employee** account from the app. Managers and owners continue using Blade.
