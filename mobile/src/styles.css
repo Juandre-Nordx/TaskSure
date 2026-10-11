@@ -16,7 +16,7 @@ h3 { font-size: 16px; font-weight: 650; }
 .app-shell { max-width: 760px; margin: auto; min-height: 100dvh; }
 .topbar { position: sticky; top: 0; z-index: 10; background: var(--forest); color: white; padding: calc(15px + env(safe-area-inset-top)) 20px 15px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 23px; font-weight: 700; letter-spacing: -.6px; }
-.brandmark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 10px; background: #c4e9ad; color: var(--forest); }
+.brandmark { display: block; width: 35px; height: 35px; flex-shrink: 0; }
 .avatar { display: grid; place-items: center; border-radius: 50%; width: 36px; height: 36px; background: #e5eddf; color: var(--forest); font-weight: 700; flex-shrink: 0; }
 .content { padding: 25px 18px calc(110px + env(safe-area-inset-bottom)); }
 .pagehead { margin-bottom: 22px; display: flex; gap: 16px; align-items: start; justify-content: space-between; }

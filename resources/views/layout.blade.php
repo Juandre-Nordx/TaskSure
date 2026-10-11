@@ -1,7 +1,8 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>
 @yield('title', 'Overview') · TaskSure</title>
+@include('partials.brand-icons')
 @vite(['resources/css/app.css','resources/js/app.js'])</head><body>
-<div class="shell"><aside class="sidebar"><a class="brand" href="/"><span class="brandmark">✓</span>TaskSure<span style="color:#a8cf87">.</span></a><div><p class="navlabel">STORE OPERATIONS</p><nav>
+<div class="shell"><aside class="sidebar"><a class="brand" href="/"><img class="brandmark" src="{{ asset('tasksure-icon.svg') }}" alt="" width="35" height="35">TaskSure<span style="color:#a8cf87">.</span></a><div><p class="navlabel">STORE OPERATIONS</p><nav>
 @foreach(['/' => ['◫','Overview'], '/tasks' => ['☷','Tasks'], '/calendar'=>['▦','Calendar'], '/reports'=>['↗','Reports'], '/notifications'=>['♧','Notifications']] as $url=>$item)<a class="navlink {{ request()->getPathInfo()===$url?'current':'' }}" href="{{ $url }}"><span class="navicon">{{ $item[0] }}</span>{{ $item[1] }}</a>
 @endforeach
 @if(auth()->user()->role==='admin')<a class="navlink {{ request()->is('admin/users')?'current':'' }}" href="/admin/users">People</a><a class="navlink {{ request()->is('admin/settings')?'current':'' }}" href="/admin/settings">Store settings</a>
