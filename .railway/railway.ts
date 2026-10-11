@@ -8,7 +8,7 @@ export default defineRailway((ctx) => {
   APP_KEY:ctx.shared.APP_KEY, APP_URL:ctx.shared.APP_URL,
   DB_CONNECTION:'pgsql', DB_HOST:db.env.PGHOST, DB_PORT:db.env.PGPORT,
   DB_DATABASE:db.env.PGDATABASE, DB_USERNAME:db.env.PGUSER, DB_PASSWORD:db.env.PGPASSWORD,
-  SESSION_DRIVER:'database', SESSION_ENCRYPT:'true', SESSION_SECURE_COOKIE:'true', CACHE_STORE:'database', QUEUE_CONNECTION:'database',
+  SESSION_DRIVER:'database', SESSION_ENCRYPT:'true', SESSION_SECURE_COOKIE:'true', CACHE_STORE:'database', QUEUE_CONNECTION:'database', DB_QUEUE_RETRY_AFTER:'180',
   LOG_CHANNEL:'stderr', TASK_EMAIL_ENABLED:'false', MAIL_MAILER:'log', UPLOAD_MAX_KB:'10240', REMINDER_MINUTES:'60',
  };
  const build = {builder:'DOCKERFILE',dockerfilePath:'Dockerfile'} as const;

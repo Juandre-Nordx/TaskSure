@@ -9,6 +9,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "sync": "npm run build && cap sync",
+    "sync:android": "npm run build && cap sync android",
+    "check:android": "node scripts/check-android.mjs",
+    "check:android:push": "node scripts/check-android.mjs --require-firebase",
     "android": "cap open android",
     "ios": "cap open ios"
   },

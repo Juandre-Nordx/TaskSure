@@ -3,6 +3,11 @@ import { Camera, type MediaResult } from '@capacitor/camera';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Preferences } from '@capacitor/preferences';
 import { api } from './api';
+import { ANDROID_PUSH_CONFIGURED } from './build-config';
+
+export function nativePushAvailable(): boolean {
+  return Capacitor.isNativePlatform() && (Capacitor.getPlatform() !== 'android' || ANDROID_PUSH_CONFIGURED);
+}
 
 const PUSH_KEY = 'tasksure-push-enabled';
 const CAMERA_KEY = 'tasksure-camera-task';
@@ -31,11 +36,11 @@ export async function clearCameraTask(): Promise<void> {
 }
 
 export async function pushEnabled(): Promise<boolean> {
-  return (await Preferences.get({ key: PUSH_KEY })).value === 'true';
+  return nativePushAvailable() && (await Preferences.get({ key: PUSH_KEY })).value === 'true';
 }
 
 export async function setUpPush(onUpdate: () => void, onOpen: (taskId?: string) => void, onError: (message: string) => void): Promise<void> {
-  if (! Capacitor.isNativePlatform() || listeners.length) return;
+  if (! nativePushAvailable() || listeners.length) return;
   const platform = Capacitor.getPlatform();
   listeners = await Promise.all([
     PushNotifications.addListener('registration', async token => {
@@ -66,6 +71,7 @@ export async function setUpPush(onUpdate: () => void, onOpen: (taskId?: string) 
 
 export async function enablePush(requestPermission = true): Promise<string> {
   if (! Capacitor.isNativePlatform()) return 'Push notifications are available in the Android and iOS app.';
+  if (! nativePushAvailable()) return 'Phone notifications are unavailable in this build. Contact your store owner for an updated app.';
   let permission = await PushNotifications.checkPermissions();
   if (requestPermission && (permission.receive === 'prompt' || permission.receive === 'prompt-with-rationale')) permission = await PushNotifications.requestPermissions();
   if (permission.receive !== 'granted') return 'Notifications are blocked. Enable them in your phone settings.';

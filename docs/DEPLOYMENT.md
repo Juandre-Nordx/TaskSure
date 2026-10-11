@@ -49,6 +49,8 @@ The production Dockerfile uses ordinary `RUN` instructions because Railway's Met
 
 7. **Create the worker and scheduler services.** Add two services from the same GitHub repository/branch and Dockerfile. Give both the same `APP_KEY`, `APP_URL`, PostgreSQL references, session/cache/queue and mail variables as web. Set `PROCESS_ROLE=worker` on one and `PROCESS_ROLE=scheduler` on the other. Keep one replica each and an on-failure restart policy. Set no pre-deploy command or HTTP healthcheck on these two services. They need no public domain or evidence volume. Deploy them after web's migrations succeed. Do not enable service sleeping/serverless mode on these long-running processes.
 
+   Set `DB_QUEUE_RETRY_AFTER=180` on all application services. The worker timeout stays at 90 seconds; reservation expiry must exceed that timeout so another worker does not retry a still-running job. Restart workers after changing queue/provider configuration.
+
 8. **Create the first administrator.** Install/login to the Railway CLI and link this project/environment. Open the running web container:
 
    ```sh

@@ -2,6 +2,8 @@
 
 `mobile/` is a separate TypeScript/Vite/Tailwind CSS 4 app with Capacitor 8 Android and iOS projects. It bundles its HTML, JavaScript, CSS and calendar code into the native app. Capacitor has **no `server.url`**: it never loads the Railway website as its production interface. Laravel remains the backend, with the existing Blade manager/owner dashboard, PostgreSQL, queue and scheduler.
 
+For the audited Android status, Windows PowerShell APK/install commands and remaining phone/account checks, see [Android installation readiness](ANDROID_READINESS.md). `npm run sync:android` builds and syncs Android only; run `npm run check:android` afterwards, or `npm run check:android:push` for a build that must support Firebase push.
+
 ## Build and run
 
 Use Node 24, and run commands from `mobile/`:
@@ -33,7 +35,7 @@ iOS requires macOS/Xcode compatible with Capacitor 8, an Apple developer team an
 
 ## Android push: Firebase HTTP v1
 
-1. Register Android application `za.co.tasksure.employee` in your Firebase project. Download its client `google-services.json` into `mobile/android/app/google-services.json` (ignored). Enable the Firebase Cloud Messaging API.
+1. Register Android application `za.co.tasksure.employee` in your Firebase project. Download its client `google-services.json` into `mobile/android/app/google-services.json` (ignored). Enable the Firebase Cloud Messaging API. The mobile bundle detects this file at build time: rebuild/sync after adding it. Builds without matching client configuration keep native Android push unavailable and continue supporting tasks/camera.
 2. Create a server service account with permission to send FCM messages. Supply its complete JSON as Railway secret `FCM_SERVICE_ACCOUNT_JSON` on the **worker**. The frontend never receives this private key. No legacy FCM server key is used.
 3. Set `MOBILE_PUSH_ENABLED=true` on web, worker and scheduler after configuring the providers you support. Deploy/restart those services so configuration caches and long-running workers read the new variables. Rebuild/sync the Android project with the client Firebase file.
 4. In the app's Settings, enable push notifications. Android 13+ asks for notification permission. A new assignment/reminder/review uses `AlertService`, queues `SendAlertPush` after the database commit, and sends to the device registered for this sign-in.
