@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Alert;
 use App\Models\PushDelivery;
 use App\Models\PushDevice;
+use App\Models\User;
 use App\Services\MobilePushGateway;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,7 +36,7 @@ class SendAlertPush implements ShouldBeUnique, ShouldQueue
     public function handle(MobilePushGateway $gateway): void
     {
         $alert = Alert::with(['user', 'task'])->find($this->alertId);
-        if (! config('mobile.push_enabled') || ! $alert || ! $alert->user->active || $alert->user->role !== 'employee') {
+        if (! config('mobile.push_enabled') || ! $alert || ! $alert->user->active || ! in_array($alert->user->role, User::ASSIGNEE_ROLES)) {
             return;
         }
         $devices = PushDevice::where('user_id', $alert->user_id)->with('accessToken')
@@ -46,7 +47,7 @@ class SendAlertPush implements ShouldBeUnique, ShouldQueue
         }
         $failure = null;
         foreach ($devices as $device) {
-            if (! $device->accessToken->can('employee')) {
+            if (! $device->accessToken->can('mobile') && ! $device->accessToken->can($alert->user->role)) {
                 continue;
             }
             $delivery = PushDelivery::firstOrCreate(['alert_id' => $alert->id, 'push_device_id' => $device->id]);

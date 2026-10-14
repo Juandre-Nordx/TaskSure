@@ -23,18 +23,18 @@ class TaskController extends Controller
 
     public function filters(Request $r): array
     {
-        return $r->validate(['q' => 'nullable|string|max:100', 'employee_id' => 'nullable|integer', 'category_id' => 'nullable|integer', 'priority' => ['nullable', Rule::in(Task::PRIORITIES)], 'status' => ['nullable', Rule::in(array_keys(Task::STATUSES))], 'from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from', 'basis' => 'nullable|in:assigned,due,approved', 'overdue' => 'nullable|boolean', 'sort' => 'nullable|in:due_at,title,created_at,priority', 'direction' => 'nullable|in:asc,desc']);
+        return $r->validate(['q' => 'nullable|string|max:100', 'employee_id' => 'nullable|integer', 'category_id' => 'nullable|integer', 'priority' => ['nullable', Rule::in(Task::PRIORITIES)], 'status' => ['nullable', Rule::in(array_keys(Task::STATUSES))], 'from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d|after_or_equal:from', 'basis' => 'nullable|in:assigned,due,completed,reviewed', 'review_state' => 'nullable|in:not_reviewed,reviewed', 'scope' => 'nullable|in:my,team', 'overdue' => 'nullable|boolean', 'sort' => 'nullable|in:due_at,title,created_at,priority', 'direction' => 'nullable|in:asc,desc']);
     }
 
     public function dashboard(Request $r)
     {
-        $all = Task::visible($r->user());
+        $all = $this->query->build($r->user(), ['scope' => $r->user()->isSupervisor() ? 'team' : 'my']);
         $today = now()->timezone(config('tasksure.timezone'))->format('Y-m-d');
-        $counts = ['Open' => (clone $all)->whereIn('status', ['assigned', 'in_progress', 'changes_requested'])->count(), 'Overdue' => (clone $all)->whereNotIn('status', ['approved', 'cancelled'])->where('due_at', '<', now())->count(), 'Awaiting review' => (clone $all)->where('status', 'submitted')->count(), 'Approved' => (clone $all)->where('status', 'approved')->count()];
+        $counts = ['Open' => (clone $all)->whereIn('status', ['assigned', 'in_progress'])->count(), 'Overdue' => (clone $all)->whereNotIn('status', ['completed', 'cancelled'])->where('due_at', '<', now())->count(), 'Completed' => (clone $all)->where('status', 'completed')->count(), 'Reviewed' => (clone $all)->where('status', 'completed')->where('review_status', 'reviewed')->count()];
         $todayTasks = (clone $all)->with(['employee', 'category'])->whereBetween('due_at', [BT::utc($today.' 00:00'), BT::utc($today.' 23:59:59')])->orderBy('due_at')->get();
-        $tasks = (clone $all)->with(['employee', 'category'])->whereNotIn('status', ['approved', 'cancelled'])->orderBy('due_at')->limit(8)->get();
+        $tasks = (clone $all)->with(['employee', 'category'])->whereNotIn('status', ['completed', 'cancelled'])->orderBy('due_at')->limit(8)->get();
 
-        $upcomingTasks = (clone $all)->with(['employee', 'category'])->whereNotIn('status', ['approved', 'cancelled'])->where('due_at', '>', BT::utc($today.' 23:59:59'))->orderBy('due_at')->limit(4)->get();
+        $upcomingTasks = (clone $all)->with(['employee', 'category'])->whereNotIn('status', ['completed', 'cancelled'])->where('due_at', '>', BT::utc($today.' 23:59:59'))->orderBy('due_at')->limit(4)->get();
 
         return view('dashboard', compact('tasks', 'todayTasks', 'upcomingTasks', 'counts'));
     }
@@ -42,9 +42,22 @@ class TaskController extends Controller
     public function index(Request $r)
     {
         $f = $this->filters($r);
+        $f['scope'] ??= $r->user()->isSupervisor() ? 'team' : 'my';
         $tasks = $this->query->build($r->user(), $f)->with(['employee', 'category'])->when(($f['sort'] ?? 'due_at') === 'priority', fn ($q) => $q->orderByRaw("CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END ".($f['direction'] ?? 'asc')), fn ($q) => $q->orderBy($f['sort'] ?? 'due_at', $f['direction'] ?? 'asc'))->paginate(15)->withQueryString();
 
-        return view('tasks.index', ['tasks' => $tasks, 'employees' => $r->user()->visibleEmployees()->get(), 'categories' => Category::all()]);
+        return view('tasks.index', ['tasks' => $tasks, 'scope' => $f['scope'], 'employees' => $r->user()->visibleEmployees()->when($f['scope'] === 'team', fn ($q) => $q->whereKeyNot($r->user()->id))->orderBy('name')->get(), 'categories' => Category::all()]);
+    }
+
+    public function reviews(Request $r)
+    {
+        abort_unless($r->user()->isSupervisor(), 403);
+        $f = $this->filters($r);
+        $f['scope'] = 'team';
+        $f['status'] = 'completed';
+        $f['basis'] = 'completed';
+        $tasks = $this->query->build($r->user(), $f)->with(['employee', 'category', 'reviewer'])->orderByDesc('completed_at')->orderByDesc('id')->paginate(15)->withQueryString();
+
+        return view('tasks.reviews', ['tasks' => $tasks, 'employees' => $r->user()->visibleEmployees()->whereKeyNot($r->user()->id)->orderBy('name')->get()]);
     }
 
     public function create(Request $r)
@@ -70,29 +83,35 @@ class TaskController extends Controller
             return $t;
         });
 
-        return redirect('/tasks/'.$t->id)->with('success', 'Task assigned.');
+        return $r->expectsJson()
+            ? response()->json(['data' => ['id' => $t->id], 'message' => 'Task assigned.'], 201)
+            : redirect('/tasks/'.$t->id)->with('success', 'Task assigned.');
     }
 
     public function show(Task $task, Request $r)
     {
         Gate::authorize('view', $task);
-        $task->load(['employee', 'creator', 'category', 'submissions.attachments', 'submissions.reviewer', 'attachments', 'activities.user', 'deadlineChanges.user']);
+        $task->load(['employee', 'creator', 'category', 'completer', 'reviewer', 'reviews.reviewer', 'submissions.attachments', 'submissions.reviewer', 'attachments', 'activities.user', 'deadlineChanges.user']);
 
         return view('tasks.show', ['task' => $task, 'employees' => $r->user()->visibleEmployees()->where('active', true)->get()]);
     }
 
     public function action(Task $task, Request $r)
     {
-        $action = $r->validate(['action' => 'required|in:start,submit,approve,changes_requested,reschedule,reassign,cancel,comment,blocker'])['action'];
-        Gate::authorize(in_array($action, ['approve', 'changes_requested', 'reschedule', 'reassign', 'cancel']) ? 'manage' : (in_array($action, ['comment']) ? 'view' : 'work'), $task);
+        $action = $r->validate(['action' => 'required|in:start,complete,submit,mark_reviewed,reopen,reschedule,reassign,cancel,comment,blocker'])['action'];
+        Gate::authorize(in_array($action, ['mark_reviewed', 'reopen']) ? 'review' : (in_array($action, ['reschedule', 'reassign', 'cancel']) ? 'manage' : ($action === 'comment' ? 'view' : 'work')), $task);
         switch ($action) {
             case 'start':$this->workflow->start($task, $r->user());
                 break;
-            case 'submit':$v = $r->validate(['note' => 'nullable|string|max:10000']);
-                $this->workflow->submit($task, $r->user(), $v['note'] ?? null);
+                // Existing installed employee builds can finish work while the new APK rolls out.
+            case 'submit':case 'complete':$v = $r->validate(['note' => 'nullable|string|max:10000']);
+                $this->workflow->complete($task, $r->user(), $v['note'] ?? null);
                 break;
-            case 'approve':case 'changes_requested':$v = $r->validate(['reason' => ($action === 'changes_requested' ? 'required' : 'nullable').'|string|max:5000']);
-                $this->workflow->review($task, $r->user(), $action === 'approve' ? 'approved' : $action, $v['reason'] ?? null);
+            case 'mark_reviewed':$v = $r->validate(['reason' => 'nullable|string|max:5000']);
+                $this->workflow->markReviewed($task, $r->user(), $v['reason'] ?? null);
+                break;
+            case 'reopen':$v = $r->validate(['reason' => 'required|string|max:5000']);
+                $this->workflow->reopen($task, $r->user(), $v['reason']);
                 break;
             case 'reschedule':$v = $r->validate(['due_at' => 'required|date_format:Y-m-d\TH:i', 'reason' => 'required|string|max:5000', 'confirmed' => 'accepted']);
                 $this->workflow->reschedule($task, $r->user(), BT::utc($v['due_at']), $v['reason']);
@@ -134,7 +153,7 @@ class TaskController extends Controller
             DB::transaction(function () use ($task, $r, $file, $mime, $kind, &$path) {
                 $t = Task::lockForUpdate()->findOrFail($task->id);
                 Gate::authorize('work', $t);
-                abort_unless(in_array($t->status, ['assigned', 'in_progress', 'changes_requested']), 422);
+                abort_unless(in_array($t->status, ['assigned', 'in_progress']), 422);
                 $path = $file->store('evidence', 'evidence');
                 $t->attachments()->create(['user_id' => $r->user()->id, 'path' => $path, 'original_name' => mb_substr(basename(str_replace('\\', '/', $file->getClientOriginalName())), 0, 180), 'mime' => $mime, 'kind' => $kind, 'size' => $file->getSize()]);
                 $this->workflow->log($t, $r->user(), 'upload', 'Evidence uploaded.');
@@ -166,6 +185,6 @@ class TaskController extends Controller
     {
         $f = $this->filters($r);
 
-        return response()->json($this->query->build($r->user(), $f)->with('employee')->get()->map(fn ($t) => ['id' => $t->id, 'title' => $t->title.' · '.Task::STATUSES[$t->status].($t->overdue() ? ' · OVERDUE' : ''), 'start' => $t->due_at, 'end' => null, 'url' => '/tasks/'.$t->id, 'backgroundColor' => $t->overdue() ? '#b45309' : ($t->status === 'approved' ? '#16755c' : '#264f44'), 'editable' => $r->user()->isSupervisor() && ! in_array($t->status, ['approved', 'cancelled']), 'extendedProps' => ['due_at' => $t->due_at->toIso8601String(), 'scheduled_at' => $t->scheduled_at?->toIso8601String()]]));
+        return response()->json($this->query->build($r->user(), $f)->with('employee')->get()->map(fn ($t) => ['id' => $t->id, 'title' => $t->title.' · '.Task::STATUSES[$t->status].($t->overdue() ? ' · OVERDUE' : ''), 'start' => $t->due_at, 'end' => null, 'url' => '/tasks/'.$t->id, 'backgroundColor' => $t->overdue() ? '#b45309' : ($t->status === 'completed' ? '#16755c' : '#264f44'), 'editable' => $r->user()->isSupervisor() && ! in_array($t->status, ['completed', 'cancelled']), 'extendedProps' => ['due_at' => $t->due_at->toIso8601String(), 'scheduled_at' => $t->scheduled_at?->toIso8601String()]]));
     }
 }

@@ -10,11 +10,11 @@ describe('employee interface', () => {
     expect(escape('<img src=x onerror="alert(1)">')).toBe('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
   });
   it('requires fresh evidence and a nonempty completion note on each attempt', () => {
-    const task = { required_evidence: ['photo', 'note'], draft_evidence: [], status: 'changes_requested' } as unknown as TaskDetails;
+    const task = { required_evidence: ['photo', 'note'], draft_evidence: [], status: 'assigned' } as unknown as TaskDetails;
     expect(missingEvidence(task, '   ')).toEqual(['photo', 'note']);
     expect(missingEvidence({ ...task, draft_evidence: [{ kind: 'photo' }] } as TaskDetails, 'Shelf checked')).toEqual([]);
     expect(canWork(task)).toBe(true);
-    expect(canWork({ ...task, status: 'submitted' })).toBe(false);
-    expect(canWork({ ...task, status: 'approved' })).toBe(false);
+    expect(canWork({ ...task, status: 'completed' })).toBe(false);
+    expect(canWork({ ...task, status: 'cancelled' })).toBe(false);
   });
 });

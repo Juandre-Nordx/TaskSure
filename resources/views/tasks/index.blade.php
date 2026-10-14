@@ -1,9 +1,9 @@
 
 @extends('layout')
 @section('title','Tasks')
-@section('content')<div class="pagehead"><div><p class="eyebrow">THE WORK, IN ONE PLACE</p><h1>{{ auth()->user()->isSupervisor()?'Team tasks':'My tasks' }}</h1><p class="muted" style="margin-top:9px">{{ $tasks->total() }} tasks in your current view.</p></div>
+@section('content')<div class="pagehead"><div><p class="eyebrow">THE WORK, IN ONE PLACE</p><h1>{{ $scope==='team'?'Team tasks':'My tasks' }}</h1><p class="muted" style="margin-top:9px">{{ $tasks->total() }} tasks in your current view.</p></div>
 @if(auth()->user()->isSupervisor())<a class="btn primary" href="/tasks/create">＋ Assign task</a>
-@endif</div><section class="card"><form method="get">
+@endif</div><section class="card"><form method="get"><input type="hidden" name="scope" value="{{ $scope }}">
 @include('partials.filters')<div class="filter-bar"><div><label>Sort by</label><select name="sort">
 @foreach(['due_at'=>'Deadline','title'=>'Title','created_at'=>'Assigned date','priority'=>'Priority'] as $k=>$s)<option value="{{ $k }}" 
 @selected(request('sort','due_at')===$k)>{{ $s }}</option>

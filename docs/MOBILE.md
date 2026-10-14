@@ -1,4 +1,4 @@
-# TaskSure employee mobile app
+# TaskSure manager and employee mobile app
 
 `mobile/` is a separate TypeScript/Vite/Tailwind CSS 4 app with Capacitor 8 Android and iOS projects. It bundles its HTML, JavaScript, CSS and calendar code into the native app. Capacitor has **no `server.url`**: it never loads the Railway website as its production interface. Laravel remains the backend, with the existing Blade manager/owner dashboard, PostgreSQL, queue and scheduler.
 
@@ -25,10 +25,10 @@ iOS requires macOS/Xcode compatible with Capacitor 8, an Apple developer team an
 ## Deploy the Laravel API to Railway
 
 1. Deploy the updated Laravel source using the existing root Dockerfile and PostgreSQL service. The Docker context excludes `mobile/`; the native frontend is built separately. Preserve the existing `APP_KEY`, database, evidence volume and dashboard configuration.
-2. Keep the existing pre-deploy command `php artisan migrate --force && php artisan db:seed --force`. The new migration adds Sanctum access tokens, push devices and delivery records; it does not replace task tables or data.
+2. Keep the existing pre-deploy command `php artisan migrate --force`. Review pending migrations before the controlled pre-deploy step. The completion/review migration converts legacy statuses while retaining audit records; follow [the release guide](COMPLETION-REVIEW-RELEASE.md). Do not seed production.
 3. Set `MOBILE_ALLOWED_ORIGINS=capacitor://localhost,https://localhost` on web. Android uses `https://localhost` and iOS uses `capacitor://localhost`. If publishing a separate browser build, append its exact HTTPS origin. CORS uses bearer authorization and does not allow credentialed cookies or wildcard origins.
 4. Keep the existing database queue worker and scheduler running. Initially use `MOBILE_PUSH_ENABLED=false` on all services. Native push needs the provider configuration below; in-app alerts work independently.
-5. Confirm `/health` works and unauthenticated `GET /api/mobile/v1/me` returns JSON HTTP 401. Sign in with an existing active **employee** account from the app. Managers and owners continue using Blade.
+5. Confirm `/health` works and unauthenticated `GET /api/mobile/v1/me` returns JSON HTTP 401. Sign in with an existing active **employee or manager** account from the app. Owners continue using Blade; managers retain their Blade dashboard too.
 6. Build/sync the mobile app against that Railway API URL. Install it on real devices and complete the checklist below before distributing a signed release.
 
 ## Android push: Firebase HTTP v1
@@ -51,31 +51,35 @@ All lock-screen push messages use generic text. Task details load through the au
 
 ## API contract
 
-All paths below are relative to `/api/mobile/v1`. All authenticated requests require `Authorization: Bearer <token>` and `Accept: application/json`. Only active employee accounts with the `employee` token ability are accepted. API errors use Laravel's JSON 401/403/422/429 responses.
+All paths below are relative to `/api/mobile/v1`. All authenticated requests require `Authorization: Bearer <token>` and `Accept: application/json`. Active employee and manager accounts are accepted with the `mobile` ability or their matching role ability. Existing `employee` tokens remain valid. Role and team permissions are checked on the server. API errors use Laravel's JSON 401/403/422/429 responses.
 
 | Method / path | Purpose |
 |---|---|
 | `POST /login` | `email`, `password`, `device_name`; returns token, expiry, user and app config; existing login throttling applies |
-| `GET /me` | Employee profile, SAST time zone, upload limit and push availability |
+| `GET /me` | Account profile, SAST time zone, upload limit and push availability |
 | `POST /logout` | Revoke current phone token and push device |
-| `GET /tasks` | Scoped/paginated task summaries; existing filters plus `open=1`, `has_submissions=1`, `page` |
+| `GET /tasks` | Personal task summaries only (including for managers); existing filters plus `open=1`, `has_submissions=1`, `page` |
+| `GET /team/tasks` | Manager-only team summaries, excluding personal assignments |
+| `POST /team/tasks` | Scoped assignment to an active employee or manager; same validated fields as web |
+| `GET /team/options` | Active permitted assignees (name and role), plus categories |
+| `GET /reviews` | Completed team tasks; `review_state=not_reviewed/reviewed`, `employee_id`, completion `from`/`to` SAST date filters |
 | `GET /tasks/{id}` | Assignment, fresh proof, immutable attempts, feedback, activity and deadline history |
-| `POST /tasks/{id}/actions` | Existing `start`, `submit` + optional `note`, `comment`/`blocker` + `body` actions; supervisor actions are denied by existing policies |
+| `POST /tasks/{id}/actions` | `start`, `complete` + optional `note`, `comment`/`blocker` + `body`; scoped supervisors may `mark_reviewed`, `reopen` (required `reason`), `reschedule`, `reassign` or `cancel`. `submit` is a rollout alias for immediate completion; approval actions are removed |
 | `POST /tasks/{id}/uploads` | Multipart `file`; existing MIME/signature/size/phase checks and private storage |
 | `GET /attachments/{id}` | Authenticated private file; `?preview=1` for inline photos |
-| `GET /calendar?from=YYYY-MM-DD&to=YYYY-MM-DD` | Employee's due-date events; inclusive SAST dates, maximum 93-day difference; dragging disabled |
+| `GET /calendar?from=YYYY-MM-DD&to=YYYY-MM-DD` | Signed-in assignee’s personal due-date events; inclusive SAST dates, maximum 93-day difference; dragging disabled |
 | `GET /notifications?page=1` | Scoped alerts with unread count; inaccessible reassigned task links omitted |
 | `POST /notifications/{id}/read` | Mark only this employee's notification read |
 | `POST /devices` | `platform` (`android`/`ios`) and native push `token`; tied to current sign-in and encrypted at rest |
 | `DELETE /devices` | Disable push for current sign-in |
 
-Task lists and notifications return `{data, meta}`; details return `{data}`; calendar returns an event array. There is no public mobile registration or manager access through the employee API. Business transitions remain in `TaskWorkflow`, authorization in `TaskPolicy`, task filtering in `TaskQuery`, and uploads/downloads reuse `TaskController`. Shared palette/calendar configuration/error formatting live in `resources/shared/` and are used by both clients.
+Task lists and notifications return `{data, meta}`; details return `{data}`; calendar returns an event array. There is no public registration. Managers have separate personal and team screens; employees cannot call management endpoints. A manager cannot review their own task. Business transitions remain in `TaskWorkflow`, authorization in `TaskPolicy`, task filtering in `TaskQuery`, and uploads/downloads reuse `TaskController`. Shared palette/calendar configuration/error formatting live in `resources/shared/` and are used by both clients.
 
 ## Device verification
 
 - Sign in/out and restart the native app. Confirm secure sign-in restoration and server revocation after password reset or deactivation. Sign in on two phones and ensure logging out one leaves the other active.
 - Check task filters, day/week/month calendar, SAST deadlines, comments and blockers. An unrelated employee must receive 403 for another employee's task or evidence, even when guessing an ID.
-- Take a photo, pick a photo/PDF, preview private evidence, submit a completion note, request corrections through Blade, then upload fresh proof and resubmit. Check that the original attempt retains its original evidence and deadline. The mobile app keeps no offline task/evidence database; uploads and submissions require connectivity.
+- Take a photo, pick a photo/PDF, preview private evidence, complete with a note, optionally mark the work as reviewed, reopen with a correction note, then upload fresh proof and complete again. Check that the original attempt retains its original evidence and deadline. The mobile app keeps no offline task/evidence database; uploads and completions require connectivity.
 - On Android, interrupt the camera activity by reclaiming the app process and verify `appRestoredResult` recovers the photo for the same employee/task. Recovery requires explicit upload and never silently submits work.
 - Test native camera denial/cancel, oversize/invalid evidence, loss of connection, expired tokens and a task reassigned while its screen is open. Server rules remain authoritative.
 - With real provider credentials, verify foreground/background push, permission denial, notification tap, invalid device-token cleanup and queued-job retry. Verify logout removes push delivery for that sign-in. Do not treat HTTP-faked provider tests as live device delivery.

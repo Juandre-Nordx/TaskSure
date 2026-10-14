@@ -1,7 +1,7 @@
 <div class="filter-bar"><div><label for="q">Search</label><input id="q" name="q" placeholder="Task or store area" value="{{ request('q') }}"></div>
-@if(auth()->user()->isSupervisor())<div><label for="employee_id">Employee</label><select id="employee_id" name="employee_id"><option value="">All permitted employees</option>
+@if(auth()->user()->isSupervisor() && ($scope??null)!=='my')<div><label for="employee_id">Assignee</label><select id="employee_id" name="employee_id"><option value="">All permitted people</option>
 @foreach($employees as $e)<option value="{{ $e->id }}" 
-@selected(request('employee_id')==$e->id)>{{ $e->name }}</option>
+@selected(request('employee_id')==$e->id)>{{ $e->name }} · {{ ucfirst($e->role) }}</option>
 @endforeach</select></div>
 @endif<div><label for="category_id">Category</label><select id="category_id" name="category_id"><option value="">All categories</option>
 @foreach($categories as $c)<option value="{{ $c->id }}" 

@@ -38,6 +38,7 @@ Route::middleware(['auth', ActiveUser::class])->group(function () {
     Route::get('/', [TaskController::class, 'dashboard'])->name('dashboard');
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/create', [TaskController::class, 'create']);
+    Route::get('/reviews', [TaskController::class, 'reviews']);
     Route::post('/tasks', [TaskController::class, 'store']);
     Route::get('/tasks/{task}', [TaskController::class, 'show']);
     Route::post('/tasks/{task}/action', [TaskController::class, 'action']);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -16,7 +17,7 @@ class MobileEmployee
             $user->tokens()->delete();
             abort(401, 'Your account is inactive. Contact your administrator.');
         }
-        abort_unless($user->role === 'employee' && $user->tokenCan('employee'), 403, 'Employee access is required.');
+        abort_unless(in_array($user->role, User::ASSIGNEE_ROLES) && ($user->tokenCan('mobile') || $user->tokenCan($user->role)), 403, 'Manager or employee mobile access is required.');
 
         $response = $next($request);
         $response->headers->set('Cache-Control', 'private, no-store');

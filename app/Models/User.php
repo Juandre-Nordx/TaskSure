@@ -11,6 +11,8 @@ class User extends Authenticatable
 {
     use HasApiTokens,HasFactory,Notifiable;
 
+    public const ASSIGNEE_ROLES = ['employee', 'manager'];
+
     protected $fillable = ['name', 'email', 'password', 'role', 'active'];
 
     protected $hidden = ['password', 'remember_token'];
@@ -37,11 +39,16 @@ class User extends Authenticatable
 
     public function canManageEmployee(User $employee): bool
     {
-        return $employee->role === 'employee' && ($this->role === 'admin' || ($this->role === 'manager' && $this->employees()->whereKey($employee->id)->exists()));
+        return $this->active && in_array($employee->role, self::ASSIGNEE_ROLES)
+            && ($this->role === 'admin' || ($this->role === 'manager'
+                && ($this->id === $employee->id || $this->employees()->whereKey($employee->id)->exists())));
     }
 
     public function visibleEmployees()
     {
-        return self::query()->where('role', 'employee')->when($this->role === 'manager', fn ($q) => $q->whereIn('id', $this->employees()->select('users.id')))->when($this->role === 'employee', fn ($q) => $q->whereKey($this->id));
+        return self::query()->whereIn('role', self::ASSIGNEE_ROLES)
+            ->when($this->role === 'manager', fn ($q) => $q->where(fn ($q) => $q->whereKey($this->id)->orWhereIn('id', $this->employees()->select('users.id'))))
+            ->when($this->role === 'employee', fn ($q) => $q->whereKey($this->id))
+            ->when(! in_array($this->role, ['admin', 'manager', 'employee']), fn ($q) => $q->whereRaw('1 = 0'));
     }
 }

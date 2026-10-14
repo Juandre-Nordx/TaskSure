@@ -40,10 +40,11 @@ class DemoSeeder extends Seeder
                     $t->update(['status' => 'in_progress', 'started_at' => now()->subHour()]);
                 }if ($i % 5 === 3) {
                     $s = $t->submissions()->create(['employee_id' => $e->id, 'note' => 'Demo record: shift checklist completed.', 'submitted_at' => now()->subMinutes(20), 'due_at' => $t->due_at]);
-                    $t->update(['status' => 'submitted']);
+                    $t->update(['status' => 'completed', 'completed_at' => $s->submitted_at, 'completed_by_id' => $e->id, 'current_completion_id' => $s->id]);
                 }if ($i % 5 === 4) {
-                    $s = $t->submissions()->create(['employee_id' => $e->id, 'note' => 'Demo record: count completed.', 'submitted_at' => now()->subHour(), 'due_at' => $t->due_at, 'review_status' => 'approved', 'reviewer_id' => $owner->id, 'reviewed_at' => now()]);
-                    $t->update(['status' => 'approved', 'approved_at' => now()]);
+                    $s = $t->submissions()->create(['employee_id' => $e->id, 'note' => 'Demo record: count completed.', 'submitted_at' => now()->subHour(), 'due_at' => $t->due_at]);
+                    $review = $t->reviews()->create(['submission_id' => $s->id, 'reviewer_id' => $owner->id, 'action' => 'reviewed', 'note' => 'Fictional local review.', 'occurred_at' => now()]);
+                    $t->update(['status' => 'completed', 'completed_at' => $s->submitted_at, 'completed_by_id' => $e->id, 'current_completion_id' => $s->id, 'review_status' => 'reviewed', 'reviewed_at' => $review->occurred_at, 'reviewer_id' => $owner->id]);
                 }
             }
         }

@@ -75,7 +75,7 @@ class TaskSureTest extends TestCase
             $this->get('/tasks/'.$t->id)->assertOk();
         }
         $this->action($t, $this->employee, ['action' => 'reschedule', 'due_at' => '2026-10-09T17:00', 'reason' => 'No', 'confirmed' => '1'])->assertForbidden();
-        $this->action($t, $this->employee, ['action' => 'approve'])->assertForbidden();
+        $this->action($t, $this->employee, ['action' => 'mark_reviewed'])->assertForbidden();
         $this->actingAs($this->manager)->get('/admin/users')->assertForbidden();
     }
 
@@ -96,52 +96,52 @@ class TaskSureTest extends TestCase
     public function test_required_evidence_and_safe_uploads(): void
     {
         $t = $this->task(['required_evidence' => ['photo', 'document', 'note']]);
-        $this->action($t, $this->employee, ['action' => 'submit', 'note' => 'Done'])->assertSessionHasErrors('action');
+        $this->action($t, $this->employee, ['action' => 'complete', 'note' => 'Done'])->assertSessionHasErrors('action');
         $this->actingAs($this->employee)->post('/tasks/'.$t->id.'/uploads', ['file' => UploadedFile::fake()->createWithContent('shell.php', '<?php echo 1;')])->assertSessionHasErrors('file');
         $this->post('/tasks/'.$t->id.'/uploads', ['file' => UploadedFile::fake()->image('proof.jpg')])->assertRedirect();
         $this->post('/tasks/'.$t->id.'/uploads', ['file' => UploadedFile::fake()->createWithContent('count.pdf', "%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF")])->assertRedirect();
-        $this->action($t, $this->employee, ['action' => 'submit', 'note' => 'Completed count and refill'])->assertRedirect();
-        $this->assertEquals('submitted', $t->fresh()->status);
+        $this->action($t, $this->employee, ['action' => 'complete', 'note' => 'Completed count and refill'])->assertRedirect();
+        $this->assertEquals('completed', $t->fresh()->status);
         $this->assertCount(2, $t->submissions()->first()->attachments);
         foreach ($t->attachments as $a) {
             Storage::disk('evidence')->assertExists($a->path);
             $this->get('/attachments/'.$a->id)->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
-        }$this->post('/tasks/'.$t->id.'/uploads', ['file' => UploadedFile::fake()->image('late.jpg')])->assertUnprocessable();
+        }$this->post('/tasks/'.$t->id.'/uploads', ['file' => UploadedFile::fake()->image('late.jpg')])->assertForbidden();
     }
 
     public function test_submission_punctuality_deadline_changes_and_attempts(): void
     {
         $this->travelTo(now()->setDate(2026, 10, 8)->setTime(8, 0));
         $t = $this->task(['due_at' => now()->addHour()]);
-        $this->action($t, $this->employee, ['action' => 'submit', 'note' => 'First attempt'])->assertRedirect();
+        $this->action($t, $this->employee, ['action' => 'complete', 'note' => 'First attempt'])->assertRedirect();
         $first = $t->submissions()->first();
         $original = $first->due_at->copy();
         $this->travel(2)->hours();
-        $this->action($t, $this->manager, ['action' => 'changes_requested'])->assertSessionHasErrors('reason');
-        $this->action($t, $this->manager, ['action' => 'changes_requested', 'reason' => 'Check the lower shelf'])->assertRedirect();
+        $this->action($t, $this->manager, ['action' => 'reopen'])->assertSessionHasErrors('reason');
+        $this->action($t, $this->manager, ['action' => 'reopen', 'reason' => 'Check the lower shelf'])->assertRedirect();
         $this->action($t, $this->manager, ['action' => 'reschedule', 'due_at' => '2026-10-08T15:00', 'reason' => 'New shift', 'confirmed' => '1'])->assertRedirect();
         $this->assertTrue($first->fresh()->due_at->equalTo($original));
-        $this->action($t, $this->employee, ['action' => 'submit', 'note' => 'Second attempt'])->assertRedirect();
+        $this->action($t, $this->employee, ['action' => 'complete', 'note' => 'Second attempt'])->assertRedirect();
         $this->travel(5)->hours();
-        $this->action($t, $this->manager, ['action' => 'approve'])->assertRedirect();
+        $this->action($t, $this->manager, ['action' => 'mark_reviewed'])->assertRedirect();
         $this->assertCount(2, $t->submissions()->get());
         $this->assertCount(1, $t->deadlineChanges()->get());
         $report = app(ReportService::class)->run($this->admin, []);
         $row = $report['rows'][0];
         $this->assertEquals('On time', $row['first_punctuality']);
-        $this->assertEquals('On time', $row['accepted_punctuality']);
+        $this->assertEquals('On time', $row['latest_punctuality']);
         $this->assertEquals(1, $row['corrections']);
-        $this->assertNotEquals($row['accepted_submission'], $row['approved']);
-        $this->assertStringContainsString('Check the lower shelf', $row['attempts']);
+        $this->assertNotEquals($row['latest_completion'], $row['reviewed']);
+        $this->assertStringContainsString('Check the lower shelf', $row['review_history']);
     }
 
     public function test_resubmission_requires_fresh_proof(): void
     {
         $t = $this->task(['required_evidence' => ['photo']]);
         $this->actingAs($this->employee)->post('/tasks/'.$t->id.'/uploads', ['file' => UploadedFile::fake()->image('first.jpg')]);
-        $this->action($t, $this->employee, ['action' => 'submit']);
-        $this->action($t, $this->manager, ['action' => 'changes_requested', 'reason' => 'Wrong shelf']);
-        $this->action($t, $this->employee, ['action' => 'submit'])->assertSessionHasErrors('action');
+        $this->action($t, $this->employee, ['action' => 'complete']);
+        $this->action($t, $this->manager, ['action' => 'reopen', 'reason' => 'Wrong shelf']);
+        $this->action($t, $this->employee, ['action' => 'complete'])->assertSessionHasErrors('action');
         $this->assertCount(1, $t->submissions()->first()->attachments);
     }
 
@@ -189,8 +189,8 @@ class TaskSureTest extends TestCase
     {
         $t = $this->task();
         $this->task(['employee_id' => $this->outsider->id, 'title' => 'Excluded task']);
-        $this->action($t, $this->employee, ['action' => 'submit', 'note' => 'Done']);
-        $this->action($t, $this->manager, ['action' => 'approve']);
+        $this->action($t, $this->employee, ['action' => 'complete', 'note' => 'Done']);
+        $this->action($t, $this->manager, ['action' => 'mark_reviewed']);
         $f = ['employee_id' => $this->employee->id, 'category_id' => $this->category->id, 'basis' => 'due'];
         $report = app(ReportService::class)->run($this->admin, $f);
         $this->actingAs($this->admin)->get('/reports?'.http_build_query($f))->assertOk()->assertSee($t->title)->assertDontSee('Excluded task');
@@ -244,31 +244,31 @@ class TaskSureTest extends TestCase
         $this->assertDatabaseHas('settings', ['key' => 'reminder_minutes', 'value' => '90']);
     }
 
-    public function test_approved_and_cancelled_tasks_are_closed(): void
+    public function test_completed_and_cancelled_tasks_are_closed(): void
     {
         $t = $this->task();
         $this->action($t, $this->admin, ['action' => 'cancel', 'reason' => 'Delivery cancelled'])->assertRedirect();
-        $this->action($t, $this->employee, ['action' => 'submit', 'note' => 'Done'])->assertForbidden();
+        $this->action($t, $this->employee, ['action' => 'complete', 'note' => 'Done'])->assertForbidden();
         $this->assertEquals('Delivery cancelled', $t->fresh()->cancellation_reason);
         $r = app(ReportService::class)->run($this->admin, []);
-        $this->assertEquals(0, $r['summary'][0]['submitted_denominator']);
+        $this->assertEquals(0, $r['summary'][0]['completion_denominator']);
     }
 
     public function test_late_submission_and_date_basis_are_explicit(): void
     {
         $this->travelTo(now()->setDate(2026, 10, 8)->setTime(8, 0));
         $t = $this->task(['due_at' => now()->subHour()]);
-        $this->action($t, $this->employee, ['action' => 'submit', 'note' => 'Completed after the deadline'])->assertRedirect();
-        $this->action($t, $this->manager, ['action' => 'approve'])->assertRedirect();
+        $this->action($t, $this->employee, ['action' => 'complete', 'note' => 'Completed after the deadline'])->assertRedirect();
+        $this->action($t, $this->manager, ['action' => 'mark_reviewed'])->assertRedirect();
         $r = app(ReportService::class)->run($this->admin, []);
         $this->assertEquals('Late', $r['rows'][0]['first_punctuality']);
-        $this->assertEquals('Late', $r['rows'][0]['accepted_punctuality']);
+        $this->assertEquals('Late', $r['rows'][0]['latest_punctuality']);
         $this->assertEquals(1, $r['summary'][0]['first_late']);
         $t->update(['created_at' => now()->subDays(2)]);
         $period = ['from' => '2026-10-08', 'to' => '2026-10-08'];
         $this->assertCount(0, app(ReportService::class)->run($this->admin, $period + ['basis' => 'assigned'])['rows']);
         $this->assertCount(1, app(ReportService::class)->run($this->admin, $period + ['basis' => 'due'])['rows']);
-        $this->assertCount(1, app(ReportService::class)->run($this->admin, $period + ['basis' => 'approved'])['rows']);
+        $this->assertCount(1, app(ReportService::class)->run($this->admin, $period + ['basis' => 'reviewed'])['rows']);
     }
 
     public function test_unconfigured_delivery_is_never_recorded_as_sent_and_upload_limits_apply(): void

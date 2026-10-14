@@ -4,13 +4,15 @@ Use the Railway dashboard checklist below. The repository includes a Dockerfile 
 
 The production Dockerfile uses ordinary `RUN` instructions because Railway's Metal builder accepts cache mounts only. Trusted certificate secret mounts are confined to `docker/Dockerfile.dev` for the managed cloud workspace. If a deployment reports `--mount=type=secret` as unsupported, deploy the latest `main` commit and confirm the service uses the root `Dockerfile`.
 
+For the completion/optional-review release, follow the [coordinated upgrade procedure](COMPLETION-REVIEW-RELEASE.md) before this general checklist. Old application processes must not write legacy statuses while the data migration runs.
+
 ## Deployment checklist
 
 1. **Open your Railway project and check PostgreSQL.** Use your existing PostgreSQL service in the same project/environment. Create one with **New → Database → PostgreSQL** only if you do not already have one. Back up an existing database before migrations. The examples use the service name `Postgres`; replace that name in variable references if yours differs.
 
 2. **Connect the web service to GitHub.** Choose **New → GitHub Repo → Juandre-Nordx/TaskSure**, branch `main`, and name the service `web`. Use the repository root and the included `Dockerfile`. Configure the remaining settings before deploying. Leave custom build/start commands empty: `PROCESS_ROLE` selects the process through the Docker entrypoint.
 
-3. **Set production variables.** Generate a key in a trusted local checkout with dependencies installed:
+3. **Set production variables.** For an existing deployment, preserve its original APP_KEY on web, worker and scheduler. Generate a key only for a new deployment, in a trusted local checkout with dependencies installed:
 
    ```sh
    php artisan key:generate --show
@@ -40,10 +42,10 @@ The production Dockerfile uses ordinary `RUN` instructions because Railway's Met
 5. **Configure migrations and health.** On `web`, set **Pre-Deploy Command** to:
 
    ```sh
-   php artisan migrate --force && php artisan db:seed --force
+   php artisan migrate --force
    ```
 
-   The default seeder creates task categories only. Set **Healthcheck Path** to `/health` and **Healthcheck Timeout** to `120` seconds. This endpoint checks database connectivity and private storage writability; `/up` checks framework boot only. Enable an on-failure restart policy.
+   Do not run seeders on an existing production database. Add any missing categories through Store settings. Review pending migrations and back up before an authorised deployment. Set **Healthcheck Path** to `/health` and **Healthcheck Timeout** to `120` seconds. This endpoint checks database connectivity and private storage writability; `/up` checks framework boot only. Enable an on-failure restart policy.
 
 6. **Set the public URL and deploy web.** In **Settings → Networking → Generate Domain**, use target port `8080` (the template sets `PORT=8080`). Put the resulting `https://…` URL in `APP_URL` and deploy/redeploy. Confirm the migration command succeeds and `/health` returns HTTP 200. A custom domain can be added later; update `APP_URL` and redeploy all app services when changing it.
 
@@ -58,7 +60,7 @@ The production Dockerfile uses ordinary `RUN` instructions because Railway's Met
 
    The command asks for the password without displaying it. `railway run` runs commands on your local machine, so use SSH for commands inside the deployed app. No public registration or default production password is provided.
 
-9. **Test the deployed workflow.** Sign in over HTTPS, create a manager and employee, assign/start a task, upload an image/PDF, submit it, approve it, and export a report. Restart web and confirm the uploaded file remains available. Check worker/scheduler logs, `php artisan queue:failed`, recurring tasks and reminder generation.
+9. **Test the deployed workflow.** Sign in over HTTPS, create a manager and employee, assign/start a task, upload an image/PDF, complete it, optionally mark it as reviewed, reopen it with a correction note, complete it again and export a report. Restart web and confirm the uploaded file remains available. Check worker/scheduler logs, `php artisan queue:failed`, recurring tasks and reminder generation.
 
 10. **Enable email and backups.** Configure SMTP on all app services with `TASK_EMAIL_ENABLED=true`, `MAIL_MAILER=smtp`, `MAIL_SCHEME`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`, and `MAIL_FROM_NAME`. Use the provider's TLS settings and verified sender. Test password reset and actual reminder receipt. Without SMTP, in-app notifications work but external email does not. WhatsApp needs a real provider adapter; it is currently unconfigured. Enable backups for both PostgreSQL and the evidence volume, then rehearse [backup/restore](BACKUPS.md).
 

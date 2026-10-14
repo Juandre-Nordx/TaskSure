@@ -9,13 +9,15 @@ class Task extends Model
 {
     protected $guarded = [];
 
-    const STATUSES = ['assigned' => 'Assigned', 'in_progress' => 'In progress', 'submitted' => 'Submitted for review', 'changes_requested' => 'Changes requested', 'approved' => 'Approved', 'cancelled' => 'Cancelled'];
+    const STATUSES = ['assigned' => 'Assigned', 'in_progress' => 'In progress', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
+
+    protected $attributes = ['review_status' => 'not_reviewed'];
 
     const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 
     protected function casts(): array
     {
-        return ['required_evidence' => 'array', 'scheduled_at' => 'datetime', 'due_at' => 'datetime', 'started_at' => 'datetime', 'approved_at' => 'datetime'];
+        return ['required_evidence' => 'array', 'scheduled_at' => 'datetime', 'due_at' => 'datetime', 'started_at' => 'datetime', 'approved_at' => 'datetime', 'completed_at' => 'datetime', 'reviewed_at' => 'datetime'];
     }
 
     public function employee()
@@ -26,6 +28,26 @@ class Task extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'creator_id');
+    }
+
+    public function completer()
+    {
+        return $this->belongsTo(User::class, 'completed_by_id');
+    }
+
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    public function reviews()
+    {
+        return $this->hasMany(TaskReview::class)->orderBy('id');
+    }
+
+    public function currentCompletion()
+    {
+        return $this->belongsTo(Submission::class, 'current_completion_id');
     }
 
     public function category()
@@ -55,15 +77,13 @@ class Task extends Model
 
     public function overdue(): bool
     {
-        return ! in_array($this->status, ['approved', 'cancelled']) && $this->due_at->isPast();
+        return ! in_array($this->status, ['completed', 'cancelled']) && $this->due_at->isPast();
     }
 
     public function scopeVisible(Builder $q, User $user): void
     {
-        if ($user->role === 'employee') {
-            $q->where('employee_id', $user->id);
-        } elseif ($user->role === 'manager') {
-            $q->whereIn('employee_id', $user->employees()->select('users.id'));
+        if ($user->role !== 'admin') {
+            $q->whereIn('employee_id', $user->visibleEmployees()->select('users.id'));
         }
     }
 }

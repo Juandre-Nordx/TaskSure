@@ -45,7 +45,7 @@ class ScheduledTasks
     {
         $count = 0;
         $minutes = (int) (DB::table('settings')->where('key', 'reminder_minutes')->value('value') ?? config('tasksure.reminder_minutes'));
-        Task::with('employee')->whereNotIn('status', ['approved', 'cancelled'])->where('due_at', '<=', now()->addMinutes($minutes))->chunkById(100, function ($tasks) use (&$count) {
+        Task::with('employee')->whereNotIn('status', ['completed', 'cancelled'])->where('due_at', '<=', now()->addMinutes($minutes))->chunkById(100, function ($tasks) use (&$count) {
             foreach ($tasks as $t) {
                 if (! $t->employee->active) {
                     continue;

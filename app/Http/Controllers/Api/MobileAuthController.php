@@ -17,8 +17,8 @@ class MobileAuthController extends Controller
         if (! $user || ! Hash::check($v['password'], $user->password) || ! $user->active) {
             throw ValidationException::withMessages(['email' => 'These credentials are invalid or the account is inactive.']);
         }
-        abort_unless($user->role === 'employee', 403, 'This app is for employees. Use the web dashboard for manager and owner accounts.');
-        $token = $user->createToken('mobile:'.$v['device_name'], ['employee'], now()->addDays(30));
+        abort_unless(in_array($user->role, User::ASSIGNEE_ROLES), 403, 'Managers and employees can use this app. Store owners use the web dashboard.');
+        $token = $user->createToken('mobile:'.$v['device_name'], ['mobile', $user->role], now()->addDays(30));
 
         return response()->json($this->profile($user) + ['token' => $token->plainTextToken, 'expires_at' => $token->accessToken->expires_at->toIso8601String()])->header('Cache-Control', 'no-store');
     }

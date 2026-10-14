@@ -17,10 +17,10 @@ class MobilePushTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function fixture(string $platform): array
+    private function fixture(string $platform, string $role = 'employee'): array
     {
-        $user = User::create(['name' => 'Employee', 'email' => 'push@test.test', 'role' => 'employee', 'active' => true, 'password' => 'EmployeePassword123!']);
-        $token = $user->createToken('phone', ['employee'], now()->addDay());
+        $user = User::create(['name' => 'Test assignee', 'email' => 'push@test.test', 'role' => $role, 'active' => true, 'password' => 'EmployeePassword123!']);
+        $token = $user->createToken('phone', ['mobile', $role], now()->addDay());
         $device = PushDevice::create(['user_id' => $user->id, 'personal_access_token_id' => $token->accessToken->id, 'platform' => $platform, 'token' => 'test-push-token', 'token_hash' => hash('sha256', 'test-push-token')]);
         $alert = Alert::create(['user_id' => $user->id, 'type' => 'assigned', 'message' => 'New task', 'dedupe_key' => 'push-fixture']);
         config(['mobile.push_enabled' => true]);
@@ -45,6 +45,19 @@ class MobilePushTest extends TestCase
         $user->tokens()->delete();
         $job->handle($gateway);
         $this->assertDatabaseCount('push_devices', 0);
+    }
+
+    public function test_manager_devices_receive_push_and_expired_sign_ins_do_not(): void
+    {
+        [$user, $device, $alert] = $this->fixture('android', 'manager');
+        $gateway = $this->mock(MobilePushGateway::class);
+        $gateway->shouldReceive('send')->once()->andReturn(true);
+        (new SendAlertPush($alert->id))->handle($gateway);
+        $this->assertDatabaseHas('push_deliveries', ['alert_id' => $alert->id, 'push_device_id' => $device->id, 'status' => 'sent']);
+        $device->accessToken->update(['expires_at' => now()->subMinute()]);
+        $second = Alert::create(['user_id' => $user->id, 'type' => 'reopened', 'message' => 'Correction', 'dedupe_key' => 'expired-manager-token']);
+        (new SendAlertPush($second->id))->handle($gateway);
+        $this->assertDatabaseMissing('push_deliveries', ['alert_id' => $second->id]);
     }
 
     public function test_unconfigured_provider_records_failure_and_permanent_invalid_token_is_removed(): void

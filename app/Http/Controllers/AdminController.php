@@ -23,7 +23,7 @@ class AdminController extends Controller
     {
         $this->admin($r);
 
-        return view('admin.users', ['users' => User::with('employees')->orderBy('role')->orderBy('name')->get(), 'employees' => User::where('role', 'employee')->get(), 'audits' => AccountAudit::latest()->limit(30)->get()]);
+        return view('admin.users', ['users' => User::with('employees')->orderBy('role')->orderBy('name')->get(), 'employees' => User::whereIn('role', User::ASSIGNEE_ROLES)->orderBy('name')->get(), 'audits' => AccountAudit::latest()->limit(30)->get()]);
     }
 
     public function saveUser(Request $r, ?User $user = null)
@@ -31,7 +31,7 @@ class AdminController extends Controller
         $this->admin($r);
         $new = ! $user;
         $user ??= new User;
-        $v = $r->validate(['name' => 'required|string|max:100', 'email' => ['required', 'email', 'max:180', Rule::unique('users')->ignore($user->id)], 'role' => 'required|in:admin,manager,employee', 'password' => [$new ? 'required' : 'nullable', 'confirmed', Password::min(12)->mixedCase()->numbers()], 'active' => 'required|boolean', 'employees' => 'nullable|array', 'employees.*' => ['integer', Rule::exists('users', 'id')->where('role', 'employee')]]);
+        $v = $r->validate(['name' => 'required|string|max:100', 'email' => ['required', 'email', 'max:180', Rule::unique('users')->ignore($user->id)], 'role' => 'required|in:admin,manager,employee', 'password' => [$new ? 'required' : 'nullable', 'confirmed', Password::min(12)->mixedCase()->numbers()], 'active' => 'required|boolean', 'employees' => 'nullable|array', 'employees.*' => ['integer', Rule::exists('users', 'id')->whereIn('role', User::ASSIGNEE_ROLES)]]);
         if ($user->exists && $user->role !== $v['role']) {
             return back()->withErrors(['role' => 'Create a separate account to change role; existing task and scope history must remain consistent.']);
         }abort_if($user->id === $r->user()->id && ! $v['active'], 422, 'You cannot deactivate yourself.');
@@ -59,7 +59,7 @@ class AdminController extends Controller
     {
         $this->admin($r);
 
-        return view('admin.settings', ['categories' => Category::all(), 'templates' => TaskTemplate::with('employee')->get(), 'employees' => User::where('role', 'employee')->where('active', true)->get(), 'reminder' => DB::table('settings')->where('key', 'reminder_minutes')->value('value') ?? config('tasksure.reminder_minutes')]);
+        return view('admin.settings', ['categories' => Category::all(), 'templates' => TaskTemplate::with('employee')->get(), 'employees' => User::whereIn('role', User::ASSIGNEE_ROLES)->where('active', true)->orderBy('name')->get(), 'reminder' => DB::table('settings')->where('key', 'reminder_minutes')->value('value') ?? config('tasksure.reminder_minutes')]);
     }
 
     public function category(Request $r)
@@ -85,7 +85,7 @@ class AdminController extends Controller
     public function template(Request $r, ?TaskTemplate $template = null)
     {
         $this->admin($r);
-        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => ['required', Rule::exists('users', 'id')->where('role', 'employee')->where('active', true)], 'category_id' => 'required|exists:categories,id', 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'in:photo,document,note|distinct', 'frequency' => 'required|in:daily,weekly,monthly', 'next_date' => 'required|date_format:Y-m-d', 'due_time' => 'required|date_format:H:i', 'active' => 'required|boolean']);
+        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => ['required', Rule::exists('users', 'id')->whereIn('role', User::ASSIGNEE_ROLES)->where('active', true)], 'category_id' => 'required|exists:categories,id', 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'in:photo,document,note|distinct', 'frequency' => 'required|in:daily,weekly,monthly', 'next_date' => 'required|date_format:Y-m-d', 'due_time' => 'required|date_format:H:i', 'active' => 'required|boolean']);
         $v['anchor_day'] = (int) substr($v['next_date'], 8, 2);
         $template ??= new TaskTemplate(['creator_id' => $r->user()->id]);
         $template->fill($v)->save();

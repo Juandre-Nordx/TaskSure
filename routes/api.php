@@ -13,6 +13,10 @@ Route::prefix('mobile/v1')->group(function () {
         Route::get('/me', [MobileAuthController::class, 'me']);
         Route::post('/logout', [MobileAuthController::class, 'logout']);
         Route::get('/tasks', [MobileTaskController::class, 'index']);
+        Route::get('/team/tasks', [MobileTaskController::class, 'index'])->defaults('scope', 'team');
+        Route::post('/team/tasks', [TaskController::class, 'store']);
+        Route::get('/team/options', [MobileTaskController::class, 'options']);
+        Route::get('/reviews', [MobileTaskController::class, 'index'])->defaults('scope', 'team')->name('mobile.reviews');
         Route::get('/tasks/{task}', [MobileTaskController::class, 'show']);
         Route::post('/tasks/{task}/actions', [TaskController::class, 'action']);
         Route::post('/tasks/{task}/uploads', [TaskController::class, 'upload'])->middleware('throttle:mobile-uploads');

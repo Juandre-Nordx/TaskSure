@@ -4,14 +4,14 @@ A working employee task management app for liquor-store operations. Laravel 13 /
 
 ## What works
 
-- Dedicated [employee mobile frontend](mobile/README.md) in TypeScript/Vite/Tailwind/Capacitor, with locally bundled Android/iOS screens, camera evidence, authenticated Laravel API and queued native push. See [mobile deployment](docs/MOBILE.md) for provider credentials and signing requirements. The Blade manager dashboard remains in place.
+- Dedicated [manager and employee mobile frontend](mobile/README.md) in TypeScript/Vite/Tailwind/Capacitor, with locally bundled Android/iOS screens, camera evidence, authenticated Laravel API and queued native push. See [mobile deployment](docs/MOBILE.md) for provider credentials and signing requirements. The Blade manager dashboard remains in place.
 
-- Owner-controlled accounts, inactive accounts with preserved history, scoped managers, employee-only task and file access, password reset, CSRF protection and login throttling. No public registration.
-- Assignment, reassignment, scheduled start, priority, deadlines, start work, comments, blockers, evidence upload, submission, approval, corrections, cancellation and activity history.
-- Every attempt has its own note, evidence, deadline, reviewer, reason and timestamps. Deadline changes retain old/new values and the actor. “Overdue” is calculated separately from status.
+- Owner-controlled accounts, inactive accounts with preserved history, scoped managers, scoped task and file access for managers and employees, password reset, CSRF protection and login throttling. No public registration.
+- Assignment, reassignment, scheduled start, priority, deadlines, start work, comments, blockers, evidence upload, immediate completion, optional review, reopening with correction notes, cancellation and activity history.
+- Every completion attempt has its own note, evidence, deadline and timestamps. Optional reviews and reopenings have separate actor/time records. Deadline changes retain old/new values and the actor. “Overdue” is calculated separately from status.
 - Calendar day/week/month, task search, filters, semantic priority sorting, pagination, mobile dashboards and authenticated image previews/PDF downloads.
 - Daily/weekly/monthly templates produce separate occurrences under transaction locks and unique constraints. Retried jobs do not duplicate instances or reminder alerts. Monthly day 31 returns to day 31 after shorter months.
-- In-app assignment/reassignment, upcoming, overdue, submission, approval, correction, deadline and blocker notifications. Configurable reminder interval, optional queued SMTP delivery with recorded failures.
+- In-app assignment/reassignment, upcoming, overdue, completion, optional review, reopening, deadline and blocker notifications. Configurable reminder interval, optional queued SMTP delivery with recorded failures.
 - Employee comparison and individual task reports, date-basis filters, per-attempt punctuality, corrections, blockers, cancellation reasons, evidence references and deadline changes. Functional PDF and Excel exports share the report service.
 
 ## Local setup with PHP installed
@@ -79,7 +79,9 @@ For MySQL compatibility checks use the same command with `DB_CONNECTION=mysql` a
 
 ## Reporting definitions
 
-Every screen/export uses the same selected cohort: tasks **assigned/created**, **currently due**, or **approved** in the chosen inclusive SAST date range. Assigned counts mean assignment records in that cohort, not necessarily assignments created during the period unless that basis is selected. Pending = assigned/in progress/changes requested; awaiting review is separate. Cancelled tasks appear in selected counts and details, and are excluded from submission punctuality denominators. On-time first-submission rate = on-time first submissions / non-cancelled tasks with a first submission. First and accepted attempts use their own retained deadline; approval time does not determine punctuality. Report ownership is the currently responsible employee; prior reassignments remain in activity history. Counts are not a productivity score or hours worked.
+Every screen/export uses the same selected cohort: tasks **assigned/created**, **currently due**, **completed** or **reviewed** in the selected inclusive SAST date range. Completed counts use the current Completed state; Reviewed and Not reviewed are separate subsets. Open = Assigned or In progress. Reopening returns work to Assigned and resets its current completion/review fields while retaining attempts and review history. Cancelled tasks remain in selected counts/details and are excluded from punctuality denominators. First-completion on-time rate uses non-cancelled tasks with a first recorded completion. Each completion retains its original deadline; review time does not affect punctuality. Unknown historical timestamps remain unknown and do not match date filters. Ownership follows the currently responsible manager/employee; reassignments remain in history. Counts are not a productivity score or hours worked.
+
+The [completion/review release guide](docs/COMPLETION-REVIEW-RELEASE.md) explains scope, legacy conversion, controlled Railway migration and Android updates.
 
 ## External reminders
 
