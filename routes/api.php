@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\MobileNotificationController;
 use App\Http\Controllers\Api\MobileTaskController;
 use App\Http\Controllers\CompanyPolicyController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskRecurrenceController;
 use App\Http\Middleware\MobileEmployee;
 use App\Http\Middleware\RequireCompanyPolicy;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,8 @@ Route::prefix('mobile/v1')->group(function () {
         Route::get('/reviews', [MobileTaskController::class, 'index'])->defaults('scope', 'team')->name('mobile.reviews');
         Route::get('/tasks/{task}', [MobileTaskController::class, 'show']);
         Route::post('/tasks/{task}/actions', [TaskController::class, 'action']);
+        Route::post('/tasks/{task}/recurrence', [TaskRecurrenceController::class, 'make']);
+        Route::post('/recurring-tasks/{template}/status', [TaskRecurrenceController::class, 'status']);
         Route::post('/tasks/{task}/uploads', [TaskController::class, 'upload'])->middleware('throttle:mobile-uploads');
         Route::get('/attachments/{attachment}', [TaskController::class, 'attachment']);
         Route::get('/calendar', [MobileTaskController::class, 'calendar']);

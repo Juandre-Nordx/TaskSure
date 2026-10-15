@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Task;
 use App\Models\TaskTemplate;
 use App\Models\User;
+use App\Services\ScheduledTasks;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -88,11 +89,19 @@ class AdminController extends Controller
     {
         $this->admin($r);
         abort_if($template && $template->employee->company_id !== $r->user()->company_id, 404);
-        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => ['required', Rule::exists('users', 'id')->where('company_id', $r->user()->company_id)->whereIn('role', User::ASSIGNEE_ROLES)->where('active', true)], 'category_id' => 'required|exists:categories,id', 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'in:photo,document,note|distinct', 'frequency' => 'required|in:daily,weekly,monthly', 'next_date' => 'required|date_format:Y-m-d', 'due_time' => 'required|date_format:H:i', 'active' => 'required|boolean']);
-        $v['anchor_day'] = (int) substr($v['next_date'], 8, 2);
+        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => ['required', Rule::exists('users', 'id')->where('company_id', $r->user()->company_id)->whereIn('role', User::ASSIGNEE_ROLES)->where('active', true)], 'category_id' => 'required|exists:categories,id', 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'in:photo,document,note|distinct', 'frequency' => 'required|in:daily,weekly,monthly', 'next_date' => 'required|date_format:Y-m-d', 'due_time' => 'required|date_format:H:i', 'active' => 'required|boolean', 'ends_on' => 'nullable|date_format:Y-m-d|after_or_equal:next_date']);
         $template ??= new TaskTemplate(['creator_id' => $r->user()->id]);
-        $template->fill($v)->save();
-        AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'template_saved', 'data' => ['template_id' => $template->id] + $v]);
+        DB::transaction(function () use (&$template, $v, $r) {
+            if ($template->exists) {
+                $template = TaskTemplate::lockForUpdate()->findOrFail($template->id);
+            }
+            if (! $template->exists || $template->frequency !== $v['frequency'] || $template->next_date->toDateString() !== $v['next_date']) {
+                $v['anchor_day'] = (int) substr($v['next_date'], 8, 2);
+            }
+            $template->fill($v)->save();
+            AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'template_saved', 'data' => ['template_id' => $template->id] + $v]);
+        });
+        app(ScheduledTasks::class)->occurrences($template->id);
 
         return back()->with('success', 'Template saved. Existing task instances retain their history.');
     }

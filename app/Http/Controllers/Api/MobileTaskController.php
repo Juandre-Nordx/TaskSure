@@ -26,7 +26,7 @@ class MobileTaskController extends Controller
             $filters['basis'] = 'completed';
         }
         $v = $request->validate(['page' => 'nullable|integer|min:1', 'open' => 'nullable|boolean', 'has_submissions' => 'nullable|boolean']);
-        $tasks = $query->build($request->user(), $filters)->with(['category', 'employee', 'reviewer'])->withCount('submissions')
+        $tasks = $query->build($request->user(), $filters)->with(['category', 'employee', 'reviewer', 'template.creator', 'template.employee'])->withCount('submissions')
             ->when($request->boolean('open'), fn ($q) => $q->whereNotIn('status', ['completed', 'cancelled']))
             ->when($request->boolean('has_submissions'), fn ($q) => $q->whereHas('submissions'))
             ->orderBy('due_at')->orderBy('id')->paginate(20);

@@ -30,6 +30,11 @@ class Task extends Model
         return $this->belongsTo(User::class, 'creator_id');
     }
 
+    public function template()
+    {
+        return $this->belongsTo(TaskTemplate::class, 'task_template_id');
+    }
+
     public function completer()
     {
         return $this->belongsTo(User::class, 'completed_by_id');

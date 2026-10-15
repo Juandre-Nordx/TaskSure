@@ -63,6 +63,8 @@ All paths below are relative to `/api/mobile/v1`. All authenticated requests req
 | `GET /tasks` | Personal task summaries only (including for managers); existing filters plus `open=1`, `has_submissions=1`, `page` |
 | `GET /team/tasks` | Manager-only team summaries, excluding personal assignments |
 | `POST /team/tasks` | Scoped assignment to an active employee or manager; same validated fields as web |
+| `POST /tasks/{id}/recurrence` | Scoped supervisor converts an existing one-off: `frequency`, first `next_date`, optional `ends_on`; original workflow/history preserved |
+| `POST /recurring-tasks/{id}/status` | Scoped series creator or company owner pauses/resumes with boolean `active`; employees cannot manage series |
 | `GET /team/options` | Active permitted assignees (name and role), plus categories |
 | `GET /reviews` | Completed team tasks; `review_state=not_reviewed/reviewed`, `employee_id`, completion `from`/`to` SAST date filters |
 | `GET /tasks/{id}` | Assignment, fresh proof, immutable attempts, feedback, activity and deadline history |
@@ -76,6 +78,8 @@ All paths below are relative to `/api/mobile/v1`. All authenticated requests req
 | `DELETE /devices` | Disable push for current sign-in |
 
 Task lists and notifications return `{data, meta}`; details return `{data}`; calendar returns an event array. There is no public registration. Managers have separate personal and team screens; employees cannot call management endpoints. A manager cannot review their own task. Business transitions remain in `TaskWorkflow`, authorization in `TaskPolicy`, task filtering in `TaskQuery`, and uploads/downloads reuse `TaskController`. Shared palette/calendar configuration/error formatting live in `resources/shared/` and are used by both clients.
+
+Assignment accepts optional `recurrence` (`daily`/`weekly`/`monthly`) and inclusive `recurrence_until`. Task summaries include nullable `recurrence` schedule/state information; details include `permissions.recurrence`. The [recurring-task guide](RECURRING-TASKS.md) covers dates, permissions, the new migration, Railway scheduler setup and Android versionCode 4 / versionName 1.3.
 
 ## Device verification
 

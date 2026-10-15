@@ -17,3 +17,10 @@ const policyForm=document.querySelector('[data-policy-ack]');
 if(policyForm){const checkbox=policyForm.querySelector('[name="acknowledged"]'),button=policyForm.querySelector('[type="submit"]');const reset=()=>{checkbox.checked=false;button.disabled=true;};reset();window.addEventListener('pageshow',reset);checkbox.addEventListener('change',()=>{button.disabled=!checkbox.checked;});}
 // Revalidate on history restoration: cached content never bypasses the server guard.
 window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
+
+// Recurrence is optional; hidden end dates never change a one-off assignment.
+document.querySelectorAll('[data-recurrence-options]').forEach(container=>{
+ const repeat=container.querySelector('[name="recurrence"]'),end=container.querySelector('[name="recurrence_until"]'),section=container.querySelector('[data-recurrence-end]'),help=container.querySelector('[data-recurrence-help]'),due=container.closest('form').querySelector('[name="due_at"]');
+ const update=()=>{section.hidden=!repeat.value;help.hidden=!repeat.value;end.disabled=!repeat.value;end.min=due?.value.slice(0,10)||'';};
+ repeat.addEventListener('change',update);due?.addEventListener('change',update);update();
+});

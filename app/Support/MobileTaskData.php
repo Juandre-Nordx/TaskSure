@@ -25,6 +25,12 @@ class MobileTaskData
             'scheduled_at' => $task->scheduled_at?->toIso8601String(),
             'required_evidence' => $task->required_evidence,
             'submission_count' => $task->submissions_count,
+            'recurrence' => $task->template ? [
+                'id' => $task->template->id, 'frequency' => $task->template->frequency,
+                'active' => $task->template->active, 'next_date' => $task->template->next_date->toDateString(),
+                'ends_on' => $task->template->ends_on?->toDateString(), 'due_time' => $task->template->due_time,
+                'state' => $task->template->generationBlock() ?? 'Active',
+            ] : null,
         ];
     }
 
@@ -35,13 +41,13 @@ class MobileTaskData
 
     public static function details(Task $task, User $user): array
     {
-        $task->load(['category', 'creator', 'employee', 'completer', 'reviewer', 'reviews.reviewer', 'attachments', 'submissions.attachments', 'submissions.reviewer', 'activities.user', 'deadlineChanges.user']);
+        $task->load(['category', 'creator', 'employee', 'completer', 'reviewer', 'reviews.reviewer', 'attachments', 'submissions.attachments', 'submissions.reviewer', 'activities.user', 'deadlineChanges.user', 'template.creator', 'template.employee']);
 
         return self::summary($task) + [
             'instructions' => $task->instructions, 'creator' => $task->creator->only(['id', 'name']),
             'created_at' => $task->created_at->toIso8601String(), 'started_at' => $task->started_at?->toIso8601String(),
             'completed_by' => $task->completer?->only(['id', 'name']), 'cancellation_reason' => $task->cancellation_reason,
-            'permissions' => ['work' => Gate::forUser($user)->allows('work', $task), 'manage' => Gate::forUser($user)->allows('manage', $task), 'review' => Gate::forUser($user)->allows('review', $task)],
+            'permissions' => ['work' => Gate::forUser($user)->allows('work', $task), 'manage' => Gate::forUser($user)->allows('manage', $task), 'review' => Gate::forUser($user)->allows('review', $task), 'recurrence' => $task->template ? $task->template->manageableBy($user) : (Gate::forUser($user)->allows('manage', $task) && $task->employee->active)],
             'draft_evidence' => $task->attachments->whereNull('submission_id')->where('user_id', $user->id)->map(fn ($a) => self::attachment($a))->values(),
             'submissions' => $task->submissions->map(fn ($s) => [
                 'id' => $s->id, 'note' => $s->note, 'submitted_at' => $s->submitted_at->toIso8601String(),

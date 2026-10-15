@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -36,6 +37,9 @@ class CompanyPolicyUpgradeTest extends TestCase
             DB::table('personal_access_tokens')->insert(['id' => 1, 'tokenable_type' => 'App\\Models\\User', 'tokenable_id' => 3, 'name' => 'Existing phone', 'token' => str_repeat('a', 64), 'abilities' => '["employee"]']);
             DB::table('sessions')->insert(['id' => 'existing-session', 'user_id' => 3, 'payload' => 'preserve-session', 'last_activity' => 1]);
 
+            // Reproduce an authenticated dashboard request before the production migration.
+            $this->actingAs(User::findOrFail(1))->get('/')->assertForbidden()->assertSee('A company account is required.');
+
             $userColumns = Schema::getColumnListing('users');
             $usersBefore = DB::table('users')->select($userColumns)->orderBy('id')->get()->toJson();
             $snapshots = [];
@@ -54,6 +58,9 @@ class CompanyPolicyUpgradeTest extends TestCase
             $this->assertSame(3, DB::table('users')->where('company_id', $company->id)->count());
             $this->assertSame(0, DB::table('company_policy_versions')->count());
             $this->assertSame(0, DB::table('company_policy_acknowledgements')->count());
+
+            // The same existing owner can use the dashboard after the forward upgrade.
+            $this->actingAs(User::findOrFail(1))->get('/')->assertOk();
 
             // Account creation by the previous release omits company_id during deployment.
             DB::table('users')->insert(['name' => 'Staff created during release', 'email' => 'release@upgrade.test', 'password' => 'existing-hash', 'role' => 'employee']);

@@ -18,3 +18,5 @@ See [mobile setup, API and deployment](../docs/MOBILE.md) for native prerequisit
 The supplied TaskSure logo is bundled locally and installed as the Android/iOS app icon. See [logo and app icon updates](../docs/BRANDING.md) for rebuilding and updating an installed app.
 
 Published company policies require manager/employee acknowledgement before normal features open. The bundled screen rechecks Laravel on navigation/resume, handles blocked API responses, and keeps policy reading/sign-out available. See [the company-policy release guide](../docs/COMPANY-POLICY.md) for the database upgrade, coordinated Android update and physical-phone checks. Install this update before publishing the first policy.
+
+Managers can select daily/weekly/monthly recurrence during assignment, convert an existing task and pause/resume their manageable series. Employees see recurrence details without management controls. See [recurring tasks](../docs/RECURRING-TASKS.md) for the migration, required Railway scheduler service and signed Android rebuild (versionCode 4 / versionName 1.3).

@@ -6,6 +6,7 @@ use App\Http\Controllers\CompanyPolicyAdminController;
 use App\Http\Controllers\CompanyPolicyController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskRecurrenceController;
 use App\Http\Middleware\ActiveUser;
 use App\Http\Middleware\RequireCompanyPolicy;
 use App\Models\Alert;
@@ -47,6 +48,9 @@ Route::middleware(['auth', ActiveUser::class, RequireCompanyPolicy::class])->gro
     Route::get('/', [TaskController::class, 'dashboard'])->name('dashboard');
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/create', [TaskController::class, 'create']);
+    Route::get('/recurring-tasks', [TaskRecurrenceController::class, 'index']);
+    Route::post('/tasks/{task}/recurrence', [TaskRecurrenceController::class, 'make']);
+    Route::post('/recurring-tasks/{template}/status', [TaskRecurrenceController::class, 'status']);
     Route::get('/reviews', [TaskController::class, 'reviews']);
     Route::post('/tasks', [TaskController::class, 'store']);
     Route::get('/tasks/{task}', [TaskController::class, 'show']);

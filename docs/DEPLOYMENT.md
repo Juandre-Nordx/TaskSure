@@ -8,6 +8,8 @@ For the completion/optional-review release, follow the [coordinated upgrade proc
 
 For company-policy management and mandatory staff acknowledgement, follow the [policy release checklist](COMPANY-POLICY.md#controlled-railway-release--not-performed-automatically). It adds a forward migration and requires a rebuilt Android app before the first policy is published. This documentation does not authorize an automatic deployment or production migration.
 
+For assignment-time recurrence and pause/resume, follow the [recurring-task release guide](RECURRING-TASKS.md#controlled-railway-release), including the additive migration, Android rebuild and missing-scheduler setup. Future occurrences require `PROCESS_ROLE=scheduler`; a queue worker alone does not generate them.
+
 ## Deployment checklist
 
 1. **Open your Railway project and check PostgreSQL.** Use your existing PostgreSQL service in the same project/environment. Create one with **New → Database → PostgreSQL** only if you do not already have one. Back up an existing database before migrations. The examples use the service name `Postgres`; replace that name in variable references if yours differs.
