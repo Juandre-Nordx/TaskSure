@@ -10,9 +10,13 @@ class RequireCompanyPolicy
 {
     public function handle(Request $request, Closure $next)
     {
+        // Signing out must work even when an account's company setup is incomplete.
+        if ($request->routeIs('logout', 'mobile.logout')) {
+            return $next($request);
+        }
         $user = $request->user();
         abort_unless($user?->company_id, 403, 'A company account is required.');
-        if (! $request->routeIs('company-policy.*', 'mobile.policy.*', 'logout', 'mobile.logout', 'mobile.me')) {
+        if (! $request->routeIs('company-policy.*', 'mobile.policy.*', 'mobile.me')) {
             $policy = app(CompanyPolicyService::class)->requiredFor($user);
             if ($policy) {
                 if ($request->is('api/*', 'calendar/events') || $request->expectsJson()) {

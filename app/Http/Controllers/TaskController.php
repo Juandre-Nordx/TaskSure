@@ -7,7 +7,9 @@ use App\Models\Category;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\AlertService;
+use App\Services\ScheduledTasks;
 use App\Services\TaskQuery;
+use App\Services\TaskRecurrence;
 use App\Services\TaskWorkflow;
 use App\Support\BusinessTime as BT;
 use Illuminate\Http\Request;
@@ -70,28 +72,41 @@ class TaskController extends Controller
     public function store(Request $r, AlertService $alerts)
     {
         abort_unless($r->user()->isSupervisor(), 403);
-        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => 'required|exists:users,id', 'category_id' => 'required|exists:categories,id', 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'required|in:photo,document,note|distinct', 'scheduled_at' => 'nullable|date_format:Y-m-d\TH:i', 'due_at' => 'required|date_format:Y-m-d\TH:i|after_or_equal:scheduled_at']);
+        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => 'required|exists:users,id', 'category_id' => 'required|exists:categories,id', 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'required|in:photo,document,note|distinct', 'scheduled_at' => 'nullable|date_format:Y-m-d\TH:i', 'due_at' => 'required|date_format:Y-m-d\TH:i|after_or_equal:scheduled_at', 'recurrence' => 'nullable|in:daily,weekly,monthly', 'recurrence_until' => 'nullable|date_format:Y-m-d|prohibited_unless:recurrence,daily,weekly,monthly']);
         $e = User::findOrFail($v['employee_id']);
         abort_unless($e->active && $r->user()->canManageEmployee($e), 403);
         $v['scheduled_at'] = filled($v['scheduled_at'] ?? null) ? BT::utc($v['scheduled_at']) : null;
         $v['due_at'] = BT::utc($v['due_at']);
-        $t = DB::transaction(function () use ($r, $v, $e, $alerts) {
+        $frequency = $v['recurrence'] ?? null;
+        $endsOn = $v['recurrence_until'] ?? null;
+        unset($v['recurrence'], $v['recurrence_until']);
+        if ($frequency) {
+            $date = BT::show($v['due_at'], 'Y-m-d');
+            $r->validate(['due_at' => 'after_or_equal:'.now()->timezone(config('tasksure.timezone'))->startOfDay()->format('Y-m-d\TH:i'), 'recurrence_until' => 'nullable|after_or_equal:'.$date]);
+        }
+        $t = DB::transaction(function () use ($r, $v, $e, $alerts, $frequency, $endsOn) {
             $t = Task::create($v + ['creator_id' => $r->user()->id]);
             $this->workflow->log($t, $r->user(), 'assigned', 'Task assigned.');
+            if ($frequency) {
+                app(TaskRecurrence::class)->make($t, $r->user(), $frequency, null, $endsOn);
+            }
             $alerts->send($e, $t, 'assigned', 'You were assigned '.$t->title, 'assigned:'.$t->id);
 
             return $t;
         });
+        if ($frequency) {
+            app(ScheduledTasks::class)->occurrences($t->fresh()->task_template_id);
+        }
 
         return $r->expectsJson()
             ? response()->json(['data' => ['id' => $t->id], 'message' => 'Task assigned.'], 201)
-            : redirect('/tasks/'.$t->id)->with('success', 'Task assigned.');
+            : redirect('/tasks/'.$t->id)->with('success', $frequency ? 'Task assigned. Recurring schedule saved.' : 'Task assigned.');
     }
 
     public function show(Task $task, Request $r)
     {
         Gate::authorize('view', $task);
-        $task->load(['employee', 'creator', 'category', 'completer', 'reviewer', 'reviews.reviewer', 'submissions.attachments', 'submissions.reviewer', 'attachments', 'activities.user', 'deadlineChanges.user']);
+        $task->load(['employee', 'creator', 'category', 'completer', 'reviewer', 'reviews.reviewer', 'submissions.attachments', 'submissions.reviewer', 'attachments', 'activities.user', 'deadlineChanges.user', 'template.creator', 'template.employee']);
 
         return view('tasks.show', ['task' => $task, 'employees' => $r->user()->visibleEmployees()->where('active', true)->get()]);
     }

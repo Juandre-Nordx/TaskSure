@@ -5,35 +5,41 @@ namespace App\Services;
 use App\Models\Task;
 use App\Models\TaskTemplate;
 use App\Support\BusinessTime as BT;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 class ScheduledTasks
 {
     public function __construct(private AlertService $alerts) {}
 
-    public function occurrences(): int
+    public function occurrences(?int $templateId = null): int
     {
         $count = 0;
         $today = now()->timezone(config('tasksure.timezone'))->toDateString();
-        foreach (TaskTemplate::where('active', true)->pluck('id') as $id) {
+        foreach (TaskTemplate::where('active', true)->when($templateId, fn ($q) => $q->whereKey($templateId))->pluck('id') as $id) {
             DB::transaction(function () use ($id, $today, &$count) {
                 $p = TaskTemplate::lockForUpdate()->findOrFail($id);
-                if (! $p->active || ! $p->employee->active) {
+                if ($p->generationBlock()) {
                     return;
-                }$loops = 0;
-                while ($p->next_date->toDateString() <= $today && $loops++ < 366) {
+                }
+                $loops = 0;
+                while ($loops++ < 366) {
                     $date = $p->next_date->toDateString();
-                    $t = Task::firstOrCreate(['task_template_id' => $p->id, 'occurrence_date' => $date], ['employee_id' => $p->employee_id, 'creator_id' => $p->creator_id, 'category_id' => $p->category_id, 'title' => $p->title, 'instructions' => $p->instructions, 'area' => $p->area, 'priority' => $p->priority, 'required_evidence' => $p->required_evidence, 'due_at' => BT::utc($date.' '.$p->due_time)]);
+                    if ($p->ends_on && $date > $p->ends_on->toDateString()) {
+                        $p->update(['active' => false]);
+                        break;
+                    }
+                    $due = BT::utc($date.' '.$p->due_time);
+                    $start = $p->scheduled_offset_minutes !== null ? $due->subMinutes($p->scheduled_offset_minutes) : null;
+                    if ($date > $today && (! $start || $start->isFuture())) {
+                        break;
+                    }
+                    $t = Task::firstOrCreate(['task_template_id' => $p->id, 'occurrence_date' => $date], ['employee_id' => $p->employee_id, 'creator_id' => $p->creator_id, 'category_id' => $p->category_id, 'title' => $p->title, 'instructions' => $p->instructions, 'area' => $p->area, 'priority' => $p->priority, 'required_evidence' => $p->required_evidence, 'due_at' => $due, 'scheduled_at' => $start]);
                     if ($t->wasRecentlyCreated) {
                         $count++;
                         $t->activities()->create(['user_id' => $p->creator_id, 'type' => 'assigned', 'body' => 'Recurring occurrence generated.']);
                         $this->alerts->send($p->employee, $t, 'assigned', 'You were assigned '.$t->title, 'assigned:'.$t->id);
-                    }$d = CarbonImmutable::parse($date);
-                    $next = match ($p->frequency) {
-                        'daily' => $d->addDay(),'weekly' => $d->addWeek(),default => $d->startOfMonth()->addMonth()->day(min($p->anchor_day ?? $d->day, $d->startOfMonth()->addMonth()->daysInMonth))
-                    };
-                    $p->update(['next_date' => $next->toDateString()]);
+                    }
+                    $p->update(['next_date' => $p->followingDate($date)]);
                 }
             });
         }

@@ -49,6 +49,7 @@
 @can('work',$task)<button class="btn danger" name="action" value="blocker">Report a blocker</button>
 @endcan</div><p class="field-help">Reporting a blocker notifies reviewers. The deadline stays in place.</p></form></section></div>
 <div class="stack">
+@include('partials.task-recurrence')
 @can('manage',$task)
 @if(!in_array($task->status,['completed','cancelled']))<section class="card"><h2>Manage assignment</h2><details><summary>Change deadline</summary><form method="post" action="/tasks/{{ $task->id }}/action">
 @csrf<input type="hidden" name="action" value="reschedule"><label>New deadline · SAST</label><input type="datetime-local" name="due_at" required value="{{ \App\Support\BusinessTime::show($task->due_at,'Y-m-d\TH:i') }}"><label style="margin-top:12px">Reason for change</label><textarea name="reason" required></textarea><label class="check" style="margin-top:12px"><input type="checkbox" name="confirmed" value="1" required>I confirm this deadline change.</label><button class="btn primary">Save new deadline</button></form></details>

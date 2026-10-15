@@ -90,7 +90,7 @@ npm run android
 
 Keep your existing `mobile/.env`; confirm `VITE_API_URL=https://tasksure-production.up.railway.app/api/mobile/v1` targets the intended deployment. Keep `mobile/android/app/google-services.json` from the existing Firebase app. No service-account secret belongs in mobile files or `VITE_*` variables.
 
-In Android Studio use **Build → Generate Signed App Bundle or APK → APK → release**, with the **same keystore** used for the installed app. The application ID remains **`za.co.tasksure.employee`**, with **versionCode 3 / versionName 1.2** in this source. If you already installed/published a higher code, raise it further. Install as an update. Do not uninstall to work around a signing mismatch; use the original signing key. Use an AAB if distributing through your approved Google Play process.
+In Android Studio use **Build → Generate Signed App Bundle or APK → APK → release**, with the **same keystore** used for the installed app. The application ID remains **`za.co.tasksure.employee`**. The policy release used **versionCode 3 / versionName 1.2**; the subsequent [recurrence update](RECURRING-TASKS.md#android-update-on-windows) uses **versionCode 4 / versionName 1.3**. If you already installed/published a higher code, raise it further. Install as an update. Do not uninstall to work around a signing mismatch; use the original signing key. Use an AAB if distributing through your approved Google Play process.
 
 For a local debug build with the Android SDK/JDK configured:
 
@@ -100,6 +100,33 @@ cd android
 ```
 
 Physical-device checks still required: manager and employee login, mandatory screen, unchecked checkbox, Android hardware/gesture back, app resume after publication, old-version confirmation, loss of connection, acknowledgement then task work/camera, policy reading, sign-out and actual foreground/background push. Debug compilation and browser checks do not establish native permission behaviour or signed release delivery.
+
+## A 403 immediately after web login
+
+Access logs show the HTTP status, not the denial reason. In this release, `GET /` returns **403 “A company account is required.”** if the authenticated account has no company reference. This also occurs when the new code is deployed before the company-policy migration: the original user table has no `company_id` yet. This is separate from the normal acknowledgement requirement, which redirects to the policy screen on web or returns API 423.
+
+Use the **running web service's Railway shell**, not the PostgreSQL, worker or scheduler service. First run this read-only check:
+
+```sh
+php artisan migrate:status
+```
+
+Look for `2026_10_14_000002_create_company_policies`. If pending, back up PostgreSQL, review all other pending migrations as described above, then apply the approved migration step:
+
+```sh
+php artisan migrate --force
+php artisan migrate:status
+```
+
+The policy migration links original accounts to the one business, preserving their passwords, task history and other original fields. Reload the page afterwards. Do not recreate accounts, reset the database, seed production or remove the policy guard. Set the web pre-deploy command so subsequent releases do not miss their migrations.
+
+If the policy migration already says **Ran** but the same 403 persists, inspect the current database and company-link counts without printing account data or connection secrets:
+
+```sh
+XDG_CONFIG_HOME=/tmp php artisan tinker --execute='$companies = Schema::hasTable("companies"); $linked = Schema::hasColumn("users", "company_id"); dump(["connection" => DB::connection()->getDriverName(), "database" => DB::connection()->getDatabaseName(), "companies_table" => $companies, "users_company_id" => $linked, "companies" => $companies ? DB::table("companies")->count() : null, "primary_companies" => $companies ? DB::table("companies")->where("is_primary", true)->count() : null, "unlinked_accounts" => $linked ? DB::table("users")->whereNull("company_id")->count() : null]);'
+```
+
+Review these counts and confirm the intended database before changing any links. Do not assign arbitrary company IDs or copy a company ID from a request. Migration repair must remain separate from granting normal access: a missing link continues to block protected features. Logout is allowed even if that link is missing, and an unsuccessful mobile login does not issue a token before validating the account's policy setup.
 
 ## Verification
 

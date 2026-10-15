@@ -250,6 +250,26 @@ class CompanyPolicyTest extends TestCase
         $this->getJson(self::API.'/company-policy')->assertOk()->assertJsonPath('policy', null)->assertJsonPath('required', false);
     }
 
+    public function test_unlinked_accounts_are_blocked_from_features_but_can_still_sign_out(): void
+    {
+        foreach ([$this->owner, $this->manager, $this->employee] as $person) {
+            $person->update(['company_id' => null]);
+            $this->actingAs($person)->get('/')->assertForbidden()->assertSee('A company account is required.');
+            $this->post('/logout')->assertRedirect('/login');
+        }
+
+        $this->mobile($this->employee);
+        $this->getJson(self::API.'/tasks')->assertForbidden();
+        $this->postJson(self::API.'/logout')->assertOk();
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+
+        // A failed mobile sign-in must not issue an unusable token before checking setup.
+        $this->app['auth']->forgetGuards();
+        $this->flushHeaders();
+        $this->postJson(self::API.'/login', ['email' => $this->employee->email, 'password' => 'PolicyPassword123!', 'device_name' => 'Unlinked phone'])->assertForbidden();
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
     public function test_company_boundary_applies_to_policies_notices_history_and_owner_account_actions(): void
     {
         $otherCompany = Company::create(['name' => 'Isolated test business']);
