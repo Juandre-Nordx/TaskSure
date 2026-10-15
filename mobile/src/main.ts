@@ -10,8 +10,9 @@ import { restoreSession, saveSession, clearSession } from './session';
 import { capturePhoto, photoFile, pendingCameraTask, clearCameraTask, setUpPush, enablePush, disablePush, pushEnabled, stopPush } from './native';
 import type { MediaResult } from '@capacitor/camera';
 import { clearEvidenceCache, viewNativeDocument } from './evidence';
+import { policyScreen } from './policy';
 import { escape as e, date, today, label, canWork, missingEvidence } from './utils';
-import type { Profile, LoginResponse, Task, TaskDetails, Page, Alert, Attachment, TeamOptions } from './types';
+import type { Profile, LoginResponse, Task, TaskDetails, Page, Alert, Attachment, TeamOptions, CompanyPolicy, PolicyState } from './types';
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
 let profile: Profile | null = null;
@@ -25,6 +26,8 @@ let toastTimer: ReturnType<typeof setTimeout>;
 let loggingOut = false;
 let teamFilters = new URLSearchParams();
 let reviewFilters = new URLSearchParams();
+let policyLocked = false;
+let pushReady = false;
 let restoredPhoto: { taskId: number; userId: number; data: MediaResult } | null = null;
 let retainedPhoto: { taskId: number; file: File } | null = null;
 
@@ -81,7 +84,6 @@ function login() {
       api.setToken(data.token);
       try { await saveSession(data.token); } catch { await api.post('/logout'); throw new Error('Could not save a secure sign-in on this phone.'); }
       profile = data; form.reset();
-      await initializePush();
       location.hash = '/tasks'; await render();
     } catch (err) { error.textContent = message(err); }
     finally { button.disabled = false; }
@@ -107,10 +109,11 @@ async function signOut() {
 }
 
 async function localSignOut() {
-  profile = null; notes.clear(); teamFilters = new URLSearchParams(); reviewFilters = new URLSearchParams(); retainedPhoto = null; restoredPhoto = null; releasePage();
+  profile = null; policyLocked = false; pushReady = false; notes.clear(); teamFilters = new URLSearchParams(); reviewFilters = new URLSearchParams(); retainedPhoto = null; restoredPhoto = null; releasePage();
   await stopPush(); await clearEvidenceCache(); await clearCameraTask(); await clearSession(); login();
 }
 api.onUnauthorized = () => { if (profile) { void localSignOut(); toast('Your sign-in expired. Please sign in again.'); } };
+api.onPolicyRequired = policy => { if (profile) showPolicy(policy, true); };
 
 function taskCard(task: Task, submissions = false) {
   return `<a href="#/tasks/${task.id}" class="card task-card"><div class="card-head"><span class="eyebrow mb-0">${e(task.category.name)}</span><span class="priority ${e(task.priority)}">${e(task.priority)}</span></div><h2>${e(task.title)}</h2><p class="muted">${e(task.area)} · ${e(task.assignee.name)} (${e(task.assignee.role)})</p><div class="badges"><span class="badge ${e(task.status)}">${e(task.status_label)}</span>${task.overdue ? '<span class="badge overdue">Overdue</span>' : ''}${task.status === 'completed' ? `<span class="badge">${task.review_status === 'reviewed' ? 'Reviewed' : 'Not reviewed'}</span>` : ''}</div>${submissions ? `<p class="field-help">${task.submission_count || 0} completion attempt(s) · View evidence and feedback</p>` : ''}<div class="deadline"><span>Due ${e(date(task.due_at))}</span><strong>View →</strong></div></a>`;
@@ -261,7 +264,7 @@ async function notifications(content: HTMLElement, version: number, page = 1) {
 
 async function settings(content: HTMLElement, version: number) {
   const enabled = await pushEnabled(); if (version !== pageVersion) return;
-  content.innerHTML = pagehead('Settings', 'Your account and phone preferences.') + `<div class="stack"><section class="card"><p class="eyebrow">YOUR ACCOUNT</p><h2>${e(profile!.user.name)}</h2><p class="muted mt-2">${e(profile!.user.email)}</p><p class="field-help">${e(label(profile!.user.role))} · Account details are managed by your store owner.</p></section><section class="card"><h2>Notifications</h2><p class="muted mt-2">In-app updates are always available. Enable push to receive task updates on this phone.</p><p class="field-help">Phone notifications: ${enabled ? 'Enabled' : 'Disabled'}</p>${! profile!.config.push_enabled ? '<p class="notice">Your store has not enabled native push delivery yet. Updates remain available in the app.</p>' : ''}<button class="btn mt-4" id="push" ${! profile!.config.push_enabled || ! Capacitor.isNativePlatform() ? 'disabled' : ''}>${enabled ? 'Disable' : 'Enable'} push notifications</button>${! Capacitor.isNativePlatform() ? '<p class="field-help">Install the Android or iOS app to use push notifications.</p>' : ''}</section><section class="card"><h2>Time & evidence</h2><p class="field-help">All deadlines display in South African time (${e(profile!.config.timezone)}).</p><p class="field-help">Photos and PDFs: up to ${(profile!.config.upload_max_kb / 1024).toFixed(1)} MB each. Uploads require an internet connection.</p></section><section class="card"><h2>Sign out</h2><p class="muted mt-2">Ends this phone’s sign-in and removes its push subscription. An internet connection is required.</p><button class="btn danger full mt-4" id="logout">Sign out</button></section></div>`;
+  content.innerHTML = pagehead('Settings', 'Your account and phone preferences.') + `<div class="stack"><section class="card"><p class="eyebrow">YOUR ACCOUNT</p><h2>${e(profile!.user.name)}</h2><p class="muted mt-2">${e(profile!.user.email)}</p><p class="field-help">${e(label(profile!.user.role))} · Account details are managed by your store owner.</p></section><section class="card"><h2>Notifications</h2><p class="muted mt-2">In-app updates are always available. Enable push to receive task updates on this phone.</p><p class="field-help">Phone notifications: ${enabled ? 'Enabled' : 'Disabled'}</p>${! profile!.config.push_enabled ? '<p class="notice">Your store has not enabled native push delivery yet. Updates remain available in the app.</p>' : ''}<button class="btn mt-4" id="push" ${! profile!.config.push_enabled || ! Capacitor.isNativePlatform() ? 'disabled' : ''}>${enabled ? 'Disable' : 'Enable'} push notifications</button>${! Capacitor.isNativePlatform() ? '<p class="field-help">Install the Android or iOS app to use push notifications.</p>' : ''}</section><section class="card"><h2>Company policy</h2><p class="field-help">Read the current published policy and your acknowledgement.</p><a class="btn mt-4" href="#/company-policy">Read company policy</a></section><section class="card"><h2>Time & evidence</h2><p class="field-help">All deadlines display in South African time (${e(profile!.config.timezone)}).</p><p class="field-help">Photos and PDFs: up to ${(profile!.config.upload_max_kb / 1024).toFixed(1)} MB each. Uploads require an internet connection.</p></section><section class="card"><h2>Sign out</h2><p class="muted mt-2">Ends this phone’s sign-in and removes its push subscription. An internet connection is required.</p><button class="btn danger full mt-4" id="logout">Sign out</button></section></div>`;
   content.querySelector<HTMLButtonElement>('#push')!.onclick = async event => {
     const button = event.currentTarget as HTMLButtonElement; button.disabled = true;
     try { if (enabled) { await disablePush(); toast('Push notifications disabled.'); } else toast(await enablePush()); await render(); } catch (err) { toast(message(err)); } finally { button.disabled = false; }
@@ -270,10 +273,36 @@ async function settings(content: HTMLElement, version: number) {
 }
 
 function bindRefresh(content: HTMLElement) { content.querySelector<HTMLButtonElement>('#refresh')?.addEventListener('click', () => void render()); }
-async function runPage(action: () => Promise<void>, content: HTMLElement) { try { await action(); } catch (err) { if (content.isConnected) { content.innerHTML = `<div class="card"><h2>Could not load this page</h2><p class="error" role="alert">${e(message(err))}</p><button class="btn" id="refresh">Try again</button></div>`; bindRefresh(content); } } }
+async function runPage(action: () => Promise<void>, content: HTMLElement) { try { await action(); } catch (err) { if (err instanceof ApiError && err.code === 'POLICY_ACKNOWLEDGEMENT_REQUIRED') return; if (content.isConnected) { content.innerHTML = `<div class="card"><h2>Could not load this page</h2><p class="error" role="alert">${e(message(err))}</p><button class="btn" id="refresh">Try again</button></div>`; bindRefresh(content); } } }
 async function render() {
   if (! profile) { login(); return; }
   releasePage(); const version = ++pageVersion;
+  // Never trust a previous acknowledgement or cached policy state on navigation.
+  try {
+    root.innerHTML = '<main class="auth-form"><p role="status">Checking company policy…</p><button class="btn" id="policy-logout">Sign out</button></main>';
+    root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
+    const state = await api.request<PolicyState>('/company-policy');
+    if (version !== pageVersion || ! profile) return;
+    if (state.required && state.policy) { showPolicy(state.policy, true); return; }
+    policyLocked = false;
+    if (location.hash === '#/company-policy') {
+      if (state.policy) showPolicy(state.policy, false, state.acknowledged_at);
+      else {
+        root.innerHTML = '<main class="policy-gate"><section class="card policy-dialog"><h1>Company policy</h1><p class="muted mt-4">No company policy has been published.</p><button class="btn primary full mt-4" id="policy-continue">Continue to TaskSure</button><button class="btn full mt-3" id="policy-logout">Sign out</button></section></main>';
+        root.querySelector<HTMLButtonElement>('#policy-continue')!.onclick = () => navigate('/tasks');
+        root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
+      }
+      return;
+    }
+    if (! pushReady) { await initializePush(); if (version !== pageVersion) return; pushReady = true; }
+    if (version !== pageVersion) return;
+  } catch (error) {
+    if (! profile || version !== pageVersion) return;
+    root.innerHTML = `<main class="auth-form"><h1>Could not check company policy</h1><p class="error">${e(message(error))}</p><button class="btn" id="policy-retry">Try again</button><button class="btn" id="policy-logout">Sign out</button></main>`;
+    root.querySelector<HTMLButtonElement>('#policy-retry')!.onclick = () => void render();
+    root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
+    return;
+  }
   const path = location.hash.slice(1) || '/tasks';
   const detail = path.match(/^\/tasks\/(\d+)$/);
   const active = detail ? 'tasks' : path === '/reviews' || path.startsWith('/team') ? 'team' : path.slice(1); shell(active);
@@ -295,7 +324,7 @@ window.addEventListener('offline', () => toast('You’re offline. Reconnect befo
 async function boot() {
   root.innerHTML = '<main class="auth-form"><p role="status">Opening TaskSure…</p></main>';
   try {
-    if (await restoreSession()) { profile = await api.request<Profile>('/me'); await initializePush(); await recoverCamera(); await render(); }
+    if (await restoreSession()) { profile = await api.request<Profile>('/me'); await recoverCamera(); await render(); }
     else login();
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) { await clearSession(); login(); }
@@ -310,8 +339,8 @@ if (Capacitor.isNativePlatform()) {
       });
     }
   });
-  void App.addListener('backButton', () => { if (location.hash !== '#/tasks' && profile) navigate('/tasks'); else void App.minimizeApp(); });
-  void App.addListener('appStateChange', state => { if (state.isActive && profile) void api.request<Profile>('/me').then(data => { profile = data; }).catch(error => { if (! (error instanceof ApiError && error.status === 401)) toast(message(error)); }); });
+  void App.addListener('backButton', () => { if (policyLocked) return; if (location.hash !== '#/tasks' && profile) navigate('/tasks'); else void App.minimizeApp(); });
+  void App.addListener('appStateChange', state => { if (state.isActive && profile) void render(); });
 }
 async function recoverCamera() {
   if (! restoredPhoto || ! profile) return;
@@ -324,6 +353,36 @@ async function recoverCamera() {
   } catch (err) { toast(message(err)); }
 }
 void boot();
+
+function showPolicy(policy: CompanyPolicy, required: boolean, acknowledgedAt: string | null = null) {
+  if (! profile) return;
+  releasePage(); pageVersion++; policyLocked = required;
+  if (required) pushReady = false;
+  // Destroy any open evidence dialogs and normal navigation while locked.
+  root.innerHTML = policyScreen(policy, required, acknowledgedAt);
+  root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
+  root.querySelector<HTMLButtonElement>('#policy-reload')!.onclick = () => void render();
+  root.querySelector<HTMLButtonElement>('#policy-continue')?.addEventListener('click', () => navigate('/tasks'));
+  const checkbox = root.querySelector<HTMLInputElement>('#policy-acknowledged');
+  const confirm = root.querySelector<HTMLButtonElement>('#policy-confirm');
+  checkbox?.addEventListener('change', () => { confirm!.disabled = ! checkbox.checked; });
+  root.querySelector<HTMLFormElement>('#policy-ack-form')?.addEventListener('submit', async event => {
+    event.preventDefault(); if (! checkbox?.checked) return;
+    confirm!.disabled = true;
+    const version = pageVersion;
+    try {
+      await api.post('/company-policy/acknowledge', { policy_version_id: policy.id, acknowledged: true });
+      if (version !== pageVersion || ! profile) return;
+      // Recheck the current version before restoring the intended screen.
+      await render();
+    } catch (error) {
+      if (version !== pageVersion) return;
+      root.querySelector('#policy-error')!.textContent = message(error);
+      confirm!.disabled = ! checkbox.checked;
+    }
+  });
+}
+window.addEventListener('pageshow', event => { if (event.persisted && profile) void render(); });
 
 function reviewPanel(task: TaskDetails): string {
   const recorded = (value: string | null) => value ? date(value) : 'Not recorded';

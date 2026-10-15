@@ -2,9 +2,12 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CompanyPolicyAdminController;
+use App\Http\Controllers\CompanyPolicyController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TaskController;
 use App\Http\Middleware\ActiveUser;
+use App\Http\Middleware\RequireCompanyPolicy;
 use App\Models\Alert;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,8 +36,14 @@ Route::middleware('guest')->group(function () {
     Route::get('/reset-password/{token}', fn (string $token, Request $r) => view('auth.reset', ['token' => $token, 'email' => $r->query('email')]))->name('password.reset');
     Route::post('/reset-password', [AuthController::class, 'reset'])->middleware('throttle:reset')->name('password.update');
 });
-Route::middleware(['auth', ActiveUser::class])->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']);
+Route::middleware(['auth', ActiveUser::class, RequireCompanyPolicy::class])->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::get('/company-policy', [CompanyPolicyController::class, 'show'])->name('company-policy.show');
+    Route::post('/company-policy/acknowledge', [CompanyPolicyController::class, 'acknowledge'])->name('company-policy.acknowledge');
+    Route::get('/admin/company-policy', [CompanyPolicyAdminController::class, 'index']);
+    Route::post('/admin/company-policy/draft', [CompanyPolicyAdminController::class, 'draft']);
+    Route::post('/admin/company-policy/publish', [CompanyPolicyAdminController::class, 'publish']);
+    Route::get('/admin/company-policy/versions/{version}', [CompanyPolicyAdminController::class, 'version'])->whereNumber('version');
     Route::get('/', [TaskController::class, 'dashboard'])->name('dashboard');
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/create', [TaskController::class, 'create']);

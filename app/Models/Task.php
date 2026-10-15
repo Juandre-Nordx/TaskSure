@@ -82,8 +82,6 @@ class Task extends Model
 
     public function scopeVisible(Builder $q, User $user): void
     {
-        if ($user->role !== 'admin') {
-            $q->whereIn('employee_id', $user->visibleEmployees()->select('users.id'));
-        }
+        $q->whereIn('employee_id', $user->visibleEmployees()->select('users.id'));
     }
 }

@@ -4,8 +4,12 @@ export interface User { id: number; name: string; email: string; role: 'employee
 export interface TeamOptions { assignees: Pick<User, 'id' | 'name' | 'role'>[]; categories: { id: number; name: string }[] }
 export interface Profile {
   user: User;
+  policy_required: boolean;
+  policy: CompanyPolicy | null;
   config: { timezone: string; upload_max_kb: number; push_enabled: boolean };
 }
+export interface CompanyPolicy { id: number; version: number; title: string; content: string; published_at: string }
+export interface PolicyState { policy: CompanyPolicy | null; required: boolean; acknowledged_at: string | null }
 export interface LoginResponse extends Profile { token: string; expires_at: string }
 export interface Page<T> { data: T[]; meta: { page: number; last_page: number; total: number; unread?: number } }
 export interface Task {

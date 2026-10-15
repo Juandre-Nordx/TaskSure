@@ -9,7 +9,7 @@ class TaskPolicy
 {
     public function view(User $u, Task $t): bool
     {
-        return $u->active && ($u->role === 'admin' || (in_array($u->role, User::ASSIGNEE_ROLES) && $t->employee_id === $u->id) || ($u->role === 'manager' && $u->canManageEmployee($t->employee)));
+        return $u->active && $u->company_id !== null && $u->company_id === $t->employee->company_id && ($u->role === 'admin' || (in_array($u->role, User::ASSIGNEE_ROLES) && $t->employee_id === $u->id) || ($u->role === 'manager' && $u->canManageEmployee($t->employee)));
     }
 
     public function manage(User $u, Task $t): bool

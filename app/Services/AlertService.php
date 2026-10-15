@@ -23,6 +23,6 @@ class AlertService
 
     public function reviewers(Task $task, string $type, string $message, string $key): void
     {
-        User::where('active', true)->whereIn('role', ['admin', 'manager'])->where('id', '!=', $task->employee_id)->where(fn ($q) => $q->where('role', 'admin')->orWhereIn('id', $task->employee->managers()->select('users.id')))->get()->each(fn ($u) => $this->send($u, $task, $type, $message, $key.':'.$u->id));
+        User::where('company_id', $task->employee->company_id)->where('active', true)->whereIn('role', ['admin', 'manager'])->where('id', '!=', $task->employee_id)->where(fn ($q) => $q->where('role', 'admin')->orWhereIn('id', $task->employee->managers()->select('users.id')))->get()->each(fn ($u) => $this->send($u, $task, $type, $message, $key.':'.$u->id));
     }
 }

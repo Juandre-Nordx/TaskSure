@@ -7,6 +7,7 @@ A working employee task management app for liquor-store operations. Laravel 13 /
 - Dedicated [manager and employee mobile frontend](mobile/README.md) in TypeScript/Vite/Tailwind/Capacitor, with locally bundled Android/iOS screens, camera evidence, authenticated Laravel API and queued native push. See [mobile deployment](docs/MOBILE.md) for provider credentials and signing requirements. The Blade manager dashboard remains in place.
 
 - Owner-controlled accounts, inactive accounts with preserved history, scoped managers, scoped task and file access for managers and employees, password reset, CSRF protection and login throttling. No public registration.
+- [Company policies](docs/COMPANY-POLICY.md): owner drafts and immutable published versions, mandatory web/mobile staff acknowledgement enforced by Laravel, version history and a filterable acknowledgement overview. One business per deployment; no company switching.
 - Assignment, reassignment, scheduled start, priority, deadlines, start work, comments, blockers, evidence upload, immediate completion, optional review, reopening with correction notes, cancellation and activity history.
 - Every completion attempt has its own note, evidence, deadline and timestamps. Optional reviews and reopenings have separate actor/time records. Deadline changes retain old/new values and the actor. “Overdue” is calculated separately from status.
 - Calendar day/week/month, task search, filters, semantic priority sorting, pagination, mobile dashboards and authenticated image previews/PDF downloads.
