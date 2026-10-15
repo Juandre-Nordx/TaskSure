@@ -10,6 +10,18 @@ The web **Recurring tasks** page lists manageable series, dates, state and occur
 
 Use **Pause series / Resume series** on the task or overview. Pausing preserves existing assignments. Resuming catches up missed occurrences through the end date. Owners can edit future template details in **Store settings**; those edits never change already-created tasks. Changing a single task's deadline, assignee or cancellation state affects that occurrence only. Pause the series separately when future assignments should stop.
 
+## Future dates on the calendar
+
+Both web and the rebuilt Android interface display **Planned recurring** entries for every scheduled date in the calendar's current day/week/month view. A daily series with no end date continues when navigating to later months. Weekly and monthly series follow their existing frequency and month-end rules. Only dates at or after the template's next occurrence are projected.
+
+Tap a planned entry to read its instructions, responsible person, area, SAST deadline and scheduled start. Planned entries cannot be dragged, completed or opened as an already-created task. When the scheduler creates that occurrence, its normal task entry replaces the preview. Reading or navigating the calendar does not create database tasks or send assignment alerts.
+
+Pausing the series, reaching the inclusive end date or losing valid assignment permissions removes its ungenerated dates on the next calendar load/refresh. Existing assignments and their history stay visible. Existing cancelled, reassigned or rescheduled occurrences are never recreated as previews, even if their template cursor is moved backwards. Owners and web managers retain their permitted calendar scopes; the mobile calendar remains personal for both managers and employees. Web assignee/category/priority/search filters apply to future dates; completion/review/overdue filters apply to actual tasks.
+
+Each request is limited to an inclusive range with a maximum 93-day difference. Calendar navigation fetches the next range, so there is no fixed series horizon and no need to pre-create years of tasks. Web accepts FullCalendar's exclusive `start`/`end` or inclusive `from`/`to`, defaulting to the current SAST month when neither is supplied. Responses use private/no-store caching.
+
+The mobile calendar opts in with `include_recurring=1` and handles planned-entry IDs separately. Older installed APKs keep their numeric task-only calendar until rebuilt, avoiding links to nonexistent tasks. The calendar addition needs **no extra migration** beyond the recurrence migration below. Rebuild web assets through the normal Docker release and rebuild/sync Android using the existing instructions. The calendar update uses **versionCode 5 / versionName 1.4**, following the recurrence release's versionCode 4 / versionName 1.3.
+
 ## Dates and generation
 
 - Business dates and deadline times use **Africa/Johannesburg (SAST)**; stored timestamps remain UTC.
@@ -73,7 +85,7 @@ npm run android
 
 Keep the existing `mobile/.env` API URL and `mobile/android/app/google-services.json`. Check the API is `https://tasksure-production.up.railway.app/api/mobile/v1` unless you intentionally changed the host. Do not replace existing Firebase or signing files with examples.
 
-This source uses **versionCode 4 / versionName 1.3**, with the unchanged application ID **za.co.tasksure.employee** and existing branding/plugins. Raise versionCode further if a higher code is already installed/published. In Android Studio choose **Build → Generate Signed App Bundle or APK → APK → release** with the same signing keystore as the installed app. Install as an update; do not uninstall to resolve a signing mismatch. Use an AAB for your approved Play distribution process.
+This source uses **versionCode 5 / versionName 1.4**, with the unchanged application ID **za.co.tasksure.employee** and existing branding/plugins. Raise versionCode further if a higher code is already installed/published. In Android Studio choose **Build → Generate Signed App Bundle or APK → APK → release** with the same signing keystore as the installed app. Install as an update; do not uninstall to resolve a signing mismatch. Use an AAB for your approved Play distribution process.
 
 On a physical phone, check manager recurring creation and pause/resume, employee read-only recurrence details, a future scheduler-created assignment, push delivery, separate photo proof/completion for each occurrence and normal sign-in/policy enforcement. Browser and debug-build checks cannot verify the client's signing key, Railway runtime or native push receipt.
 

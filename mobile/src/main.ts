@@ -4,7 +4,7 @@ import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { Calendar, type EventInput } from '@fullcalendar/core';
 import { DateTime } from 'luxon';
-import { calendarOptions, BUSINESS_TIMEZONE } from '../../resources/shared/calendar.js';
+import { calendarOptions, BUSINESS_TIMEZONE, plannedOccurrenceText } from '../../resources/shared/calendar.js';
 import { api, ApiError, API_URL } from './api';
 import { restoreSession, saveSession, clearSession } from './session';
 import { capturePhoto, photoFile, pendingCameraTask, clearCameraTask, setUpPush, enablePush, disablePush, pushEnabled, stopPush } from './native';
@@ -238,17 +238,27 @@ async function bindEvidence(content: HTMLElement, files: Attachment[], version: 
 }
 
 function calendarScreen(content: HTMLElement) {
-  content.innerHTML = pagehead('Your calendar', 'Day, week and month views of your deadlines. Tap a task to open it.') + '<section class="card"><div id="calendar"></div><p id="calendar-error" class="error" role="alert"></p></section>';
+  content.innerHTML = pagehead('Your calendar', 'Your deadlines and planned recurring dates. Tap an entry for details. Pausing a series removes its planned dates.') + '<section class="card"><div id="calendar"></div><p id="calendar-error" class="error" role="alert"></p></section>';
   calendar = new Calendar(content.querySelector<HTMLElement>('#calendar')!, {
     ...calendarOptions, initialView: window.innerWidth < 600 ? 'timeGridDay' : 'dayGridMonth', editable: false,
     height: window.innerWidth < 600 ? Math.max(360, window.innerHeight - 300) : 'auto',
     scrollTime: DateTime.now().setZone(BUSINESS_TIMEZONE).minus({ hours: 1 }).toFormat('HH:mm:ss'),
     events: async (info, success, failure) => {
       const error = content.querySelector('#calendar-error')!; error.textContent = '';
-      try { const result = await api.request<EventInput[]>('/calendar?' + new URLSearchParams({ from: info.startStr.slice(0, 10), to: DateTime.fromISO(info.endStr).setZone(BUSINESS_TIMEZONE).minus({ days: 1 }).toISODate()! })); success(result); }
+      try { const result = await api.request<EventInput[]>('/calendar?' + new URLSearchParams({ from: info.startStr.slice(0, 10), to: DateTime.fromISO(info.endStr).setZone(BUSINESS_TIMEZONE).minus({ days: 1 }).toISODate()!, include_recurring: '1' })); success(result); }
       catch (err) { error.textContent = message(err); failure(err instanceof Error ? err : new Error(message(err))); }
     },
-    eventClick: info => { info.jsEvent.preventDefault(); navigate(`/tasks/${info.event.id}`); },
+    eventClick: info => {
+      info.jsEvent.preventDefault();
+      if (info.event.extendedProps.planned) {
+        const dialog = document.createElement('dialog'); dialog.setAttribute('aria-labelledby', 'planned-title');
+        dialog.innerHTML = '<h2 id="planned-title">Planned recurring task</h2><p class="note mt-4"></p><button class="btn primary mt-4">Close</button>';
+        dialog.querySelector('p')!.textContent = plannedOccurrenceText(info.event);
+        content.append(dialog); dialog.querySelector('button')!.onclick = () => dialog.close();
+        dialog.addEventListener('close', () => dialog.remove()); dialog.showModal(); return;
+      }
+      navigate(`/tasks/${info.event.id}`);
+    },
   });
   calendar.render(); bindRefresh(content);
 }
@@ -340,7 +350,7 @@ if (Capacitor.isNativePlatform()) {
       });
     }
   });
-  void App.addListener('backButton', () => { if (policyLocked) return; if (location.hash !== '#/tasks' && profile) navigate('/tasks'); else void App.minimizeApp(); });
+  void App.addListener('backButton', () => { if (policyLocked) return; const dialog = root.querySelector<HTMLDialogElement>('dialog[open]'); if (dialog) { dialog.close(); return; } if (location.hash !== '#/tasks' && profile) navigate('/tasks'); else void App.minimizeApp(); });
   void App.addListener('appStateChange', state => { if (state.isActive && profile) void render(); });
 }
 async function recoverCamera() {
