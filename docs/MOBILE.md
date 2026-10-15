@@ -71,7 +71,7 @@ All paths below are relative to `/api/mobile/v1`. All authenticated requests req
 | `POST /tasks/{id}/actions` | `start`, `complete` + optional `note`, `comment`/`blocker` + `body`; scoped supervisors may `mark_reviewed`, `reopen` (required `reason`), `reschedule`, `reassign` or `cancel`. `submit` is a rollout alias for immediate completion; approval actions are removed |
 | `POST /tasks/{id}/uploads` | Multipart `file`; existing MIME/signature/size/phase checks and private storage |
 | `GET /attachments/{id}` | Authenticated private file; `?preview=1` for inline photos |
-| `GET /calendar?from=YYYY-MM-DD&to=YYYY-MM-DD` | Signed-in assignee’s personal due-date events; inclusive SAST dates, maximum 93-day difference; dragging disabled |
+| `GET /calendar?from=YYYY-MM-DD&to=YYYY-MM-DD` | Personal due-date events; inclusive SAST dates, maximum 93-day difference; `include_recurring=1` adds planned series dates; dragging disabled |
 | `GET /notifications?page=1` | Scoped alerts with unread count; inaccessible reassigned task links omitted |
 | `POST /notifications/{id}/read` | Mark only this employee's notification read |
 | `POST /devices` | `platform` (`android`/`ios`) and native push `token`; tied to current sign-in and encrypted at rest |
@@ -79,7 +79,9 @@ All paths below are relative to `/api/mobile/v1`. All authenticated requests req
 
 Task lists and notifications return `{data, meta}`; details return `{data}`; calendar returns an event array. There is no public registration. Managers have separate personal and team screens; employees cannot call management endpoints. A manager cannot review their own task. Business transitions remain in `TaskWorkflow`, authorization in `TaskPolicy`, task filtering in `TaskQuery`, and uploads/downloads reuse `TaskController`. Shared palette/calendar configuration/error formatting live in `resources/shared/` and are used by both clients.
 
-Assignment accepts optional `recurrence` (`daily`/`weekly`/`monthly`) and inclusive `recurrence_until`. Task summaries include nullable `recurrence` schedule/state information; details include `permissions.recurrence`. The [recurring-task guide](RECURRING-TASKS.md) covers dates, permissions, the new migration, Railway scheduler setup and Android versionCode 4 / versionName 1.3.
+Assignment accepts optional `recurrence` (`daily`/`weekly`/`monthly`) and inclusive `recurrence_until`. Task summaries include nullable `recurrence` schedule/state information; details include `permissions.recurrence`. The [recurring-task guide](RECURRING-TASKS.md) covers dates, permissions, the recurrence migration, Railway scheduler setup and the calendar update's Android versionCode 5 / versionName 1.4.
+
+With `include_recurring=1`, calendar previews have IDs `recurring:{template_id}:{YYYY-MM-DD}`, `extendedProps.planned=true`, read-only assignment details and no task URL. Open their details window rather than navigating to `/tasks/{id}`. Generated tasks retain numeric IDs and replace their previews. Old APKs omit the flag and receive their existing task-only calendar. Stopping a series removes its ungenerated dates on the next fetch. Calendar reads create neither tasks nor notifications; the queue/scheduler remain responsible for actual assignment and delivery.
 
 ## Device verification
 

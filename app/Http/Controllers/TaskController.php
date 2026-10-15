@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\AlertService;
+use App\Services\CalendarEvents;
 use App\Services\ScheduledTasks;
 use App\Services\TaskQuery;
 use App\Services\TaskRecurrence;
@@ -196,10 +197,10 @@ class TaskController extends Controller
         return view('calendar', ['employees' => $r->user()->visibleEmployees()->get(), 'categories' => Category::all()]);
     }
 
-    public function events(Request $r)
+    public function events(Request $r, CalendarEvents $calendar)
     {
-        $f = $this->filters($r);
+        $f = array_replace($this->filters($r), $calendar->range($r));
 
-        return response()->json($this->query->build($r->user(), $f)->with('employee')->get()->map(fn ($t) => ['id' => $t->id, 'title' => $t->title.' · '.Task::STATUSES[$t->status].($t->overdue() ? ' · OVERDUE' : ''), 'start' => $t->due_at, 'end' => null, 'url' => '/tasks/'.$t->id, 'backgroundColor' => $t->overdue() ? '#b45309' : ($t->status === 'completed' ? '#16755c' : '#264f44'), 'editable' => $r->user()->isSupervisor() && ! in_array($t->status, ['completed', 'cancelled']), 'extendedProps' => ['due_at' => $t->due_at->toIso8601String(), 'scheduled_at' => $t->scheduled_at?->toIso8601String()]]));
+        return response()->json($calendar->forUser($r->user(), $f))->header('Cache-Control', 'private, no-store');
     }
 }
