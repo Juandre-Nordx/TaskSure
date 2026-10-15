@@ -51,13 +51,15 @@ All lock-screen push messages use generic text. Task details load through the au
 
 ## API contract
 
-All paths below are relative to `/api/mobile/v1`. All authenticated requests require `Authorization: Bearer <token>` and `Accept: application/json`. Active employee and manager accounts are accepted with the `mobile` ability or their matching role ability. Existing `employee` tokens remain valid. Role and team permissions are checked on the server. API errors use Laravel's JSON 401/403/422/429 responses.
+All paths below are relative to `/api/mobile/v1`. All authenticated requests require `Authorization: Bearer <token>` and `Accept: application/json`. Active employee and manager accounts are accepted with the `mobile` ability or their matching role ability. Existing `employee` tokens remain valid. Role and team permissions are checked on the server. API errors use Laravel's JSON 401/403/422/429 responses. An outstanding current policy returns HTTP **423**, code **`POLICY_ACKNOWLEDGEMENT_REQUIRED`**, and the latest policy. Only profile, policy reading/acknowledgement and logout remain available while blocked; authentication endpoints retain their existing rules. See [the policy contract and rollout](COMPANY-POLICY.md).
 
 | Method / path | Purpose |
 |---|---|
 | `POST /login` | `email`, `password`, `device_name`; returns token, expiry, user and app config; existing login throttling applies |
-| `GET /me` | Account profile, SAST time zone, upload limit and push availability |
+| `GET /me` | Account profile, SAST time zone, upload limit, push availability, `policy_required` and outstanding `policy` (also included in login response) |
 | `POST /logout` | Revoke current phone token and push device |
+| `GET /company-policy` | Current company policy, whether acknowledgement is required, and current acknowledgement time; no-store |
+| `POST /company-policy/acknowledge` | `policy_version_id`, accepted `acknowledged`; authenticated server-owned identity/time; idempotent; stale version returns 423 with latest policy |
 | `GET /tasks` | Personal task summaries only (including for managers); existing filters plus `open=1`, `has_submissions=1`, `page` |
 | `GET /team/tasks` | Manager-only team summaries, excluding personal assignments |
 | `POST /team/tasks` | Scoped assignment to an active employee or manager; same validated fields as web |

@@ -7,8 +7,8 @@
 @endforeach
 @if(auth()->user()->role==='manager')<a class="navlink {{ request()->is('tasks') && request('scope')==='my'?'current':'' }}" href="/tasks?scope=my">My tasks</a>@endif
 @if(auth()->user()->isSupervisor())<a class="navlink {{ request()->is('reviews')?'current':'' }}" href="/reviews">Review tasks</a>@endif
-@if(auth()->user()->role==='admin')<a class="navlink {{ request()->is('admin/users')?'current':'' }}" href="/admin/users">People</a><a class="navlink {{ request()->is('admin/settings')?'current':'' }}" href="/admin/settings">Store settings</a>
-@endif</nav></div><div class="sidebar-foot"><p class="eyebrow" style="color:#b0c99c">A little clarity. A better shift.</p><p style="font-size:12px;color:#9eb7a7;line-height:1.8">Every task has an owner.<br>Every effort leaves a record.</p></div></aside>
+@if(auth()->user()->role==='admin')<a class="navlink {{ request()->is('admin/company-policy*')?'current':'' }}" href="/admin/company-policy">Company policy</a><a class="navlink {{ request()->is('admin/users')?'current':'' }}" href="/admin/users">People</a><a class="navlink {{ request()->is('admin/settings')?'current':'' }}" href="/admin/settings">Store settings</a>
+@endif<a class="navlink" href="/company-policy">Read company policy</a></nav></div><div class="sidebar-foot"><p class="eyebrow" style="color:#b0c99c">A little clarity. A better shift.</p><p style="font-size:12px;color:#9eb7a7;line-height:1.8">Every task has an owner.<br>Every effort leaves a record.</p></div></aside>
 <div class="main"><header class="topbar"><span class="muted">Store workspace <span style="margin:0 12px;color:#c4cec1">/</span> <strong style="color:#284c3b">
 @yield('title','Overview')</strong></span><div class="small-links"><a href="/notifications" aria-label="Notifications">Notifications 
 @php($unread=\App\Models\Alert::where('user_id',auth()->id())->whereNull('read_at')->count())

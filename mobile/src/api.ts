@@ -1,7 +1,8 @@
 import { responseError } from '../../resources/shared/errors.js';
+import type { CompanyPolicy } from './types';
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) { super(message); }
+  constructor(message: string, public status: number, public code?: string) { super(message); }
 }
 
 export const API_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api/mobile/v1' : 'https://tasksure-production.up.railway.app/api/mobile/v1')).replace(/\/$/, '');
@@ -10,6 +11,7 @@ if (import.meta.env.PROD && ! API_URL.startsWith('https://')) throw new Error('T
 export class ApiClient {
   private token: string | null = null;
   onUnauthorized: (() => void) | undefined;
+  onPolicyRequired: ((policy: CompanyPolicy) => void) | undefined;
   setToken(token: string | null) { this.token = token; }
 
   async request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -37,7 +39,8 @@ export class ApiClient {
     if (! response.ok) {
       const data = await response.json().catch(() => null);
       if (response.status === 401) this.onUnauthorized?.();
-      throw new ApiError(responseError(data, `Request failed (${response.status}).`), response.status);
+      if (data?.code === 'POLICY_ACKNOWLEDGEMENT_REQUIRED' && data.policy) this.onPolicyRequired?.(data.policy);
+      throw new ApiError(responseError(data, `Request failed (${response.status}).`), response.status, data?.code);
     }
     return response;
   }

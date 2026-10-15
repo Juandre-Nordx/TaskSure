@@ -6,6 +6,8 @@ The production Dockerfile uses ordinary `RUN` instructions because Railway's Met
 
 For the completion/optional-review release, follow the [coordinated upgrade procedure](COMPLETION-REVIEW-RELEASE.md) before this general checklist. Old application processes must not write legacy statuses while the data migration runs.
 
+For company-policy management and mandatory staff acknowledgement, follow the [policy release checklist](COMPANY-POLICY.md#controlled-railway-release--not-performed-automatically). It adds a forward migration and requires a rebuilt Android app before the first policy is published. This documentation does not authorize an automatic deployment or production migration.
+
 ## Deployment checklist
 
 1. **Open your Railway project and check PostgreSQL.** Use your existing PostgreSQL service in the same project/environment. Create one with **New → Database → PostgreSQL** only if you do not already have one. Back up an existing database before migrations. The examples use the service name `Postgres`; replace that name in variable references if yours differs.

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\CompanyPolicyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -30,7 +31,9 @@ class MobileAuthController extends Controller
 
     private function profile(User $user): array
     {
-        return ['user' => $user->only(['id', 'name', 'email', 'role']), 'config' => ['timezone' => config('tasksure.timezone'), 'upload_max_kb' => config('tasksure.upload_max_kb'), 'push_enabled' => (bool) config('mobile.push_enabled')]];
+        $policy = app(CompanyPolicyService::class)->requiredFor($user);
+
+        return ['user' => $user->only(['id', 'name', 'email', 'role']), 'policy_required' => $policy !== null, 'policy' => $policy?->toPolicyData(), 'config' => ['timezone' => config('tasksure.timezone'), 'upload_max_kb' => config('tasksure.upload_max_kb'), 'push_enabled' => (bool) config('mobile.push_enabled')]];
     }
 
     public function logout(Request $request)

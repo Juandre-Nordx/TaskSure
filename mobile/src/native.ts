@@ -2,7 +2,7 @@ import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
 import { Camera, type MediaResult } from '@capacitor/camera';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Preferences } from '@capacitor/preferences';
-import { api } from './api';
+import { api, ApiError } from './api';
 
 const PUSH_KEY = 'tasksure-push-enabled';
 const CAMERA_KEY = 'tasksure-camera-task';
@@ -44,6 +44,10 @@ export async function setUpPush(onUpdate: () => void, onOpen: (taskId?: string) 
         await Preferences.set({ key: PUSH_KEY, value: 'true' });
         permissionResolve?.('Notifications enabled.');
       } catch (error) {
+        if (error instanceof ApiError && error.code === 'POLICY_ACKNOWLEDGEMENT_REQUIRED') {
+          permissionResolve?.('Read and acknowledge the company policy to finish notification registration.');
+          return;
+        }
         await Preferences.set({ key: PUSH_KEY, value: 'false' });
         const message = error instanceof Error ? error.message : 'Push registration failed.';
         permissionResolve?.(message);
