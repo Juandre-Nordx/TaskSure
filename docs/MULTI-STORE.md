@@ -71,11 +71,19 @@ The command requires confirmation, preserves that account's password, revokes se
 
 1. Sign into the web as Super Admin and choose **Create store**.
 2. Enter the store name. Select an existing company to share its policy, or enter a new company name for an independent company.
-3. Select an eligible active existing owner, or choose **Create a new owner** and enter their name/email. Set the store status and save.
-4. A new owner receives a secure password-reset/setup link when SMTP is configured. The random initial password is never exposed or emailed. If mail is disabled/fails, the store is saved with an honest setup notice; configure SMTP and use **Edit store → Send setup link**. Existing owners keep their passwords. Actual inbox delivery remains an account/provider check.
+3. Select an eligible active existing owner, or choose **Create a new owner** and enter their name/email. For a new owner, enter **Initial password** and **Confirm password** to enable immediate web sign-in without SMTP. Use at least 12 characters with uppercase, lowercase and a number. Passwords are hashed; they are never displayed, emailed, copied into audit data or restored after validation errors. Set the store status and save.
+4. Alternatively, leave both password fields blank to send a secure password-reset/setup link when outgoing email is configured. If mail is disabled/fails, the store is saved with an honest setup notice; configure mail on the web service and use **Edit store → Send setup link**. Selecting an existing owner preserves their current password. Actual inbox delivery remains an account/provider check.
 5. The owner signs into web, selects their store, then uses **Company settings**, **People** and **Store settings**. Company-name changes affect every store in that company; store-name changes affect the selected store only. Names appear in headings and PDF/Excel reports. TaskSure branding remains unchanged.
 
 Owners cannot create additional owner or platform roles through People. Existing installations with more than one owner in their original company preserve their existing authorised default-store access; the assigned primary owner is shown separately. Super Admin can change the primary assignment; the previous primary owner's membership to that store is removed, while task/history actor references remain intact.
+
+### Set a password for an owner already created
+
+As Super Admin, open **Edit store → Set owner password**, check the displayed owner name/email, enter and confirm the new password, then press **Set owner password**. This is a separate action from saving a store assignment. If you change the assigned owner, save the store first and reload before setting their password; a stale form is rejected if the assignment changed meanwhile.
+
+The password applies to that owner's account across all authorised stores. It revokes their existing database-backed web sessions, remembered sign-ins, API tokens and pending password-setup/reset links. It preserves their role, identity, memberships, store assignments, client users, tasks and history. Inactive owners must be handled through the existing account/assignment process; this action does not reactivate or promote anyone. Only Super Admin can use it. The audit records the actor, target owner, store/company and action, without passwords or hashes.
+
+The manual-password update is web-only. It introduces **no database migration and no Android rebuild**. Deploy the reviewed web source/assets through the usual authorised Railway release; if the earlier multi-store migration is still pending, follow its coordinated release procedure above. No production accounts are changed by deploying the form: passwords change only when Super Admin explicitly submits one of these actions.
 
 Recurring generation retains the existing creator-permission check. Transferring a store away from an owner stops future generation for series created by that now-unauthorised owner; existing occurrences and history remain. Review and replace those schedules under the new owner's account before relying on future dates. Manager-created series continue when their creator and assignee remain authorised in that store.
 
