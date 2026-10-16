@@ -19,6 +19,17 @@ if(policyForm){const checkbox=policyForm.querySelector('[name="acknowledged"]'),
 // Revalidate on history restoration: cached content never bypasses the server guard.
 window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
 
+// Owner assignment preserves existing credentials; new-owner fields apply only to creation.
+document.querySelectorAll('[data-owner-setup]').forEach(form=>{
+ const owner=form.querySelector('[name="owner_id"]'),fields=form.querySelector('[data-new-owner-fields]');
+ const clear=()=>form.querySelectorAll('[type="password"]').forEach(input=>{input.value='';});
+ const update=()=>{const creating=!owner.value;fields.hidden=!creating;fields.disabled=!creating;fields.querySelectorAll('[data-owner-required]').forEach(input=>{input.required=creating;});clear();};
+ owner.addEventListener('change',update);update();window.addEventListener('pageshow',clear);
+});
+document.querySelectorAll('[data-owner-password-reset]').forEach(form=>{
+ window.addEventListener('pageshow',()=>form.querySelectorAll('[type="password"]').forEach(input=>{input.value='';}));
+});
+
 // Recurrence is optional; hidden end dates never change a one-off assignment.
 document.querySelectorAll('[data-recurrence-options]').forEach(container=>{
  const repeat=container.querySelector('[name="recurrence"]'),end=container.querySelector('[name="recurrence_until"]'),section=container.querySelector('[data-recurrence-end]'),help=container.querySelector('[data-recurrence-help]'),due=container.closest('form').querySelector('[name="due_at"]');

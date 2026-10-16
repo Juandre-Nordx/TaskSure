@@ -48,6 +48,7 @@ Route::middleware(['auth', ActiveUser::class, SuperAdmin::class])->prefix('super
     Route::post('/stores', [SuperAdminController::class, 'save']);
     Route::post('/stores/{store}', [SuperAdminController::class, 'save']);
     Route::post('/stores/{store}/invite', [SuperAdminController::class, 'invite']);
+    Route::post('/stores/{store}/owner-password', [SuperAdminController::class, 'ownerPassword']);
 });
 Route::middleware(['auth', ActiveUser::class, ResolveStore::class, RequireCompanyPolicy::class])->group(function () {
     Route::get('/stores', [StoreController::class, 'index'])->name('stores.index');
