@@ -5,12 +5,12 @@ namespace App\Jobs;
 use App\Models\Alert;
 use App\Models\PushDelivery;
 use App\Models\PushDevice;
+use App\Models\Store;
 use App\Models\User;
 use App\Services\MobilePushGateway;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Gate;
 use Throwable;
 
 class SendAlertPush implements ShouldBeUnique, ShouldQueue
@@ -36,17 +36,24 @@ class SendAlertPush implements ShouldBeUnique, ShouldQueue
     public function handle(MobilePushGateway $gateway): void
     {
         $alert = Alert::with(['user', 'task'])->find($this->alertId);
-        if (! config('mobile.push_enabled') || ! $alert || ! $alert->user->active || ! in_array($alert->user->role, User::ASSIGNEE_ROLES)) {
+        if (! config('mobile.push_enabled') || ! $alert || ! $alert->deliverable() || ! in_array($alert->user->role, User::ASSIGNEE_ROLES)) {
             return;
         }
         $devices = PushDevice::where('user_id', $alert->user_id)->with('accessToken')
             ->whereHas('accessToken', fn ($q) => $q->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now())))->get();
         $data = ['alert_id' => (string) $alert->id];
-        if ($alert->task && Gate::forUser($alert->user)->allows('view', $alert->task)) {
+        if ($alert->task) {
             $data['task_id'] = (string) $alert->task_id;
         }
         $failure = null;
         foreach ($devices as $device) {
+            $data['store_id'] = (string) $device->store_id;
+            if (! $device->store_id || (int) $device->accessToken->store_id !== (int) $device->store_id || ! $alert->user->inStore($device->store_id)) {
+                continue;
+            }
+            if ($alert->store_id ? $alert->store_id !== $device->store_id : Store::whereKey($device->store_id)->value('company_id') !== $alert->company_id) {
+                continue;
+            }
             if (! $device->accessToken->can('mobile') && ! $device->accessToken->can($alert->user->role)) {
                 continue;
             }

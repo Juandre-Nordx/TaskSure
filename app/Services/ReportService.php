@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Store;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\BusinessTime as BT;
@@ -60,6 +61,6 @@ class ReportService
             ];
         })->all();
 
-        return compact('rows', 'summary', 'filters');
+        return compact('rows', 'summary', 'filters') + ['workspace' => Store::with('company')->find($user->storeId())];
     }
 }

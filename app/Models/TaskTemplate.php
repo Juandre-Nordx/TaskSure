@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\StoreContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -12,9 +13,21 @@ class TaskTemplate extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        static::creating(function (TaskTemplate $template) {
+            $template->store_id ??= app(StoreContext::class)->store?->id ?? $template->employee->storeId();
+        });
+    }
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
+
     protected function casts(): array
     {
-        return ['required_evidence' => 'array', 'active' => 'boolean', 'next_date' => 'date', 'ends_on' => 'date', 'anchor_day' => 'integer', 'scheduled_offset_minutes' => 'integer'];
+        return ['store_id' => 'integer', 'company_id' => 'integer', 'required_evidence' => 'array', 'active' => 'boolean', 'next_date' => 'date', 'ends_on' => 'date', 'anchor_day' => 'integer', 'scheduled_offset_minutes' => 'integer'];
     }
 
     public function employee()
@@ -34,7 +47,7 @@ class TaskTemplate extends Model
 
     public function scopeManageable(Builder $query, User $user): void
     {
-        $query->whereHas('creator', fn ($q) => $q->where('company_id', $user->company_id))
+        $query->where('store_id', $user->storeId())
             ->whereIn('employee_id', $user->visibleEmployees()->select('users.id'))
             ->when($user->role !== 'admin', fn ($q) => $q->where('creator_id', $user->id))
             ->when(! $user->isSupervisor(), fn ($q) => $q->whereRaw('1 = 0'));
@@ -42,23 +55,25 @@ class TaskTemplate extends Model
 
     public function manageableBy(User $user): bool
     {
-        return $user->isSupervisor() && $user->canManageEmployee($this->employee)
-            && $this->creator->company_id === $user->company_id
+        return $user->isSupervisor() && $user->storeId() === $this->store_id && $user->canManageEmployee($this->employee, $this->store_id)
             && ($user->role === 'admin' || $this->creator_id === $user->id);
     }
 
     public function generationBlock(): ?string
     {
+        if (! $this->store->active) {
+            return 'Store inactive';
+        }
         if ($this->ends_on && $this->next_date->gt($this->ends_on)) {
             return 'Finished';
         }
         if (! $this->active) {
             return 'Paused';
         }
-        if (! $this->employee->active) {
+        if (! $this->employee->inStore($this->store_id)) {
             return 'Assignee inactive';
         }
-        if (! $this->creator->canManageEmployee($this->employee)) {
+        if (! $this->creator->canManageEmployee($this->employee, $this->store_id)) {
             return 'Creator no longer has assignment permission';
         }
 

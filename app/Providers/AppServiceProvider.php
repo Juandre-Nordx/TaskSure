@@ -3,22 +3,27 @@
 namespace App\Providers;
 
 use App\Contracts\WhatsAppGateway;
+use App\Models\MobileAccessToken;
 use App\Services\UnconfiguredWhatsApp;
+use App\Support\StoreContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->bind(WhatsAppGateway::class, UnconfiguredWhatsApp::class);
+        $this->app->scoped(StoreContext::class);
     }
 
     public function boot(): void
     {
+        Sanctum::usePersonalAccessTokenModel(MobileAccessToken::class);
         RateLimiter::for('login', fn (Request $r) => [Limit::perMinute(5)->by(strtolower($r->input('email', '')).'|'.$r->ip()), Limit::perMinute(30)->by($r->ip())]);
         RateLimiter::for('reset', fn (Request $r) => Limit::perMinute(3)->by($r->ip()));
         RateLimiter::for('mobile', fn (Request $r) => Limit::perMinute(120)->by($r->user()->id));

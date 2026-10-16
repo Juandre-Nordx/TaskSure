@@ -11,9 +11,21 @@ class PushDevice extends Model
 
     protected $hidden = ['token', 'token_hash'];
 
+    protected static function booted(): void
+    {
+        static::creating(function (PushDevice $device) {
+            $device->store_id ??= $device->accessToken?->store_id;
+        });
+    }
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
+
     protected function casts(): array
     {
-        return ['token' => 'encrypted'];
+        return ['store_id' => 'integer', 'company_id' => 'integer', 'token' => 'encrypted'];
     }
 
     public function accessToken()

@@ -1,6 +1,6 @@
 # Company policy and staff acknowledgement
 
-This feature is implemented for **one business per TaskSure deployment**. There is no company selector, second-business provisioning screen or change to manager team permissions. The internal company record links existing accounts and policy history; it is not a shared SaaS tenancy feature.
+Policies are **company-wide**. The original policy release linked one existing business; the subsequent [multi-store release](MULTI-STORE.md) adds companies/stores and authorised switching. Stores within one company share policy versions and acknowledgements. Unrelated companies never share them. Follow the multi-store coordinated migration guide when upgrading to the current source.
 
 ## Owner workflow
 

@@ -189,7 +189,7 @@ class RecurringTasksTest extends TestCase
         $this->assertSame('2026-10-15 15:00', $task->fresh()->due_at->format('Y-m-d H:i'));
     }
 
-    public function test_generation_stops_for_revoked_scope_inactive_accounts_and_changed_company(): void
+    public function test_generation_stops_for_revoked_scope_inactive_accounts_and_removed_store_membership(): void
     {
         $task = $this->createSeries($this->manager);
         $this->travel(1)->days();
@@ -202,9 +202,10 @@ class RecurringTasksTest extends TestCase
         $this->manager->update(['active' => true]);
         $this->employee->update(['active' => false]);
         $this->assertSame(0, $scheduler->occurrences());
-        $this->employee->update(['active' => true, 'company_id' => Company::create(['name' => 'Other test company'])->id]);
+        $this->employee->update(['active' => true]);
+        $this->employee->stores()->updateExistingPivot($task->store_id, ['active' => false]);
         $this->assertSame(0, $scheduler->occurrences());
-        $this->employee->update(['company_id' => $this->manager->company_id]);
+        $this->employee->stores()->updateExistingPivot($task->store_id, ['active' => true]);
         $this->assertSame(1, $scheduler->occurrences());
         $this->assertSame(2, $task->template->tasks()->count());
     }
@@ -234,7 +235,7 @@ class RecurringTasksTest extends TestCase
         $this->post('/tasks', $this->fields(['employee_id' => $this->outsider->id]))->assertForbidden();
         $company = Company::create(['name' => 'Other test company']);
         $foreignOwner = $this->person('admin', $company);
-        $this->actingAs($foreignOwner)->get('/recurring-tasks')->assertOk()->assertDontSee($task->title);
+        $this->actingAs($foreignOwner)->withSession(['workspace.store_id' => $foreignOwner->storeId()])->get('/recurring-tasks')->assertOk()->assertDontSee($task->title);
         $this->post('/recurring-tasks/'.$plan->id.'/status', ['active' => 0])->assertForbidden();
         $this->post('/tasks/'.$task->id.'/recurrence', [])->assertForbidden();
         $this->assertTrue($plan->fresh()->active);

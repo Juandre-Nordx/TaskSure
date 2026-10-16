@@ -16,12 +16,12 @@ export async function photoFile(photo: MediaResult): Promise<File> {
 }
 
 export async function capturePhoto(taskId: number, userId: number): Promise<File> {
-  await Preferences.set({ key: CAMERA_KEY, value: JSON.stringify({ taskId, userId }) });
+  await Preferences.set({ key: CAMERA_KEY, value: JSON.stringify({ taskId, userId, storeId: api.getStore() }) });
   try { return await photoFile(await Camera.takePhoto({ quality: 80, targetWidth: 1920, targetHeight: 1920, correctOrientation: true, saveToGallery: false })); }
   finally { await Preferences.remove({ key: CAMERA_KEY }); }
 }
 
-export async function pendingCameraTask(): Promise<{ taskId: number; userId: number } | null> {
+export async function pendingCameraTask(): Promise<{ taskId: number; userId: number; storeId: number | null } | null> {
   const value = (await Preferences.get({ key: CAMERA_KEY })).value;
   try { return value ? JSON.parse(value) : null; } catch { return null; }
 }
@@ -62,6 +62,8 @@ export async function setUpPush(onUpdate: () => void, onOpen: (taskId?: string) 
     }),
     PushNotifications.addListener('pushNotificationReceived', () => onUpdate()),
     PushNotifications.addListener('pushNotificationActionPerformed', event => {
+      const store = Number(event.notification.data?.store_id);
+      if (store && store !== api.getStore()) { onError('This update belongs to another store. Select that store to view its updates.'); return; }
       const id = String(event.notification.data?.task_id || '');
       onOpen(/^\d+$/.test(id) ? id : undefined);
     }),

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Store;
 use App\Models\User;
 use App\Services\CompanyPolicyService;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class MobileAuthController extends Controller
             throw ValidationException::withMessages(['email' => 'These credentials are invalid or the account is inactive.']);
         }
         abort_unless(in_array($user->role, User::ASSIGNEE_ROLES), 403, 'Managers and employees can use this app. Store owners use the web dashboard.');
+        abort_unless($user->stores()->wherePivot('active', true)->exists(), 403, 'Store access is required. Contact your administrator.');
         $profile = $this->profile($user);
         $token = $user->createToken('mobile:'.$v['device_name'], ['mobile', $user->role], now()->addDays(30));
 
@@ -30,11 +32,14 @@ class MobileAuthController extends Controller
         return response()->json($this->profile($request->user()));
     }
 
-    private function profile(User $user): array
+    public function profile(User $user): array
     {
-        $policy = app(CompanyPolicyService::class)->requiredFor($user);
+        $id = $user->storeId();
+        $store = $id && $user->inStore($id, false) ? Store::with('company')->find($id) : null;
+        $available = $store && $store->active;
+        $policy = $available ? app(CompanyPolicyService::class)->requiredFor($user) : null;
 
-        return ['user' => $user->only(['id', 'name', 'email', 'role']), 'policy_required' => $policy !== null, 'policy' => $policy?->toPolicyData(), 'config' => ['timezone' => config('tasksure.timezone'), 'upload_max_kb' => config('tasksure.upload_max_kb'), 'push_enabled' => (bool) config('mobile.push_enabled')]];
+        return ['user' => $user->only(['id', 'name', 'email', 'role']), 'store' => $store?->data(), 'store_available' => (bool) $available, 'stores' => $user->stores()->wherePivot('active', true)->with('company')->get()->map->data(), 'policy_required' => $policy !== null, 'policy' => $policy?->toPolicyData(), 'config' => ['timezone' => config('tasksure.timezone'), 'upload_max_kb' => config('tasksure.upload_max_kb'), 'push_enabled' => (bool) config('mobile.push_enabled')]];
     }
 
     public function logout(Request $request)

@@ -13,7 +13,9 @@ npm run android  # Android Studio
 
 For a local browser preview, leave `VITE_API_URL` unset, run Laravel on port 8080 and run `npm run dev`. For a production native build, set `VITE_API_URL` to the HTTPS Railway API URL shown in `.env.example`.
 
-See [mobile setup, API and deployment](../docs/MOBILE.md) for native prerequisites, Firebase/APNs configuration, secure sign-in behavior and device validation. Managers have separate My tasks and Team tasks screens, scoped assignment and optional review/reopening. Owners use Blade. Business logic and permissions stay in Laravel. See the [release guide](../docs/COMPLETION-REVIEW-RELEASE.md) before upgrading production.
+See [mobile setup, API and deployment](../docs/MOBILE.md) for native prerequisites, Firebase/APNs configuration, secure sign-in behavior and device validation. Managers have separate My tasks and Team tasks screens, scoped assignment and optional review/reopening. Owners and Super Admin use the web; Super Admin mobile sign-in is rejected. Business logic and permissions stay in Laravel. See the [release guide](../docs/COMPLETION-REVIEW-RELEASE.md) before upgrading production.
+
+Use **Settings → Store → Switch store** to select an authorised workspace. Task data, evidence/camera recovery and push registration follow the selected store. The [multi-store guide](../docs/MULTI-STORE.md) covers the backend migration, owner provisioning and current Android **versionCode 6 / versionName 1.5**. Policies remain company-wide.
 
 The supplied TaskSure logo is bundled locally and installed as the Android/iOS app icon. See [logo and app icon updates](../docs/BRANDING.md) for rebuilding and updating an installed app.
 

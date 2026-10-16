@@ -2,12 +2,25 @@
 
 namespace App\Models;
 
+use App\Support\StoreContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class Task extends Model
 {
     protected $guarded = [];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Task $task) {
+            $task->store_id ??= app(StoreContext::class)->store?->id ?? $task->employee->storeId();
+        });
+    }
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
 
     const STATUSES = ['assigned' => 'Assigned', 'in_progress' => 'In progress', 'completed' => 'Completed', 'cancelled' => 'Cancelled'];
 
@@ -17,7 +30,7 @@ class Task extends Model
 
     protected function casts(): array
     {
-        return ['required_evidence' => 'array', 'scheduled_at' => 'datetime', 'due_at' => 'datetime', 'started_at' => 'datetime', 'approved_at' => 'datetime', 'completed_at' => 'datetime', 'reviewed_at' => 'datetime'];
+        return ['store_id' => 'integer', 'company_id' => 'integer', 'required_evidence' => 'array', 'scheduled_at' => 'datetime', 'due_at' => 'datetime', 'started_at' => 'datetime', 'approved_at' => 'datetime', 'completed_at' => 'datetime', 'reviewed_at' => 'datetime'];
     }
 
     public function employee()
@@ -87,6 +100,6 @@ class Task extends Model
 
     public function scopeVisible(Builder $q, User $user): void
     {
-        $q->whereIn('employee_id', $user->visibleEmployees()->select('users.id'));
+        $q->where('store_id', $user->storeId())->whereIn('employee_id', $user->visibleEmployees()->select('users.id'));
     }
 }

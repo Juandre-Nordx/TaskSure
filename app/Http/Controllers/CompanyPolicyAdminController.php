@@ -20,7 +20,8 @@ class CompanyPolicyAdminController extends Controller
         $filters = $request->validate(['role' => 'nullable|in:employee,manager', 'ack_status' => 'nullable|in:acknowledged,outstanding']);
         $company = $service->company($request->user());
         $current = $service->current($request->user());
-        $staff = User::where('users.company_id', $company->id)->where('active', true)->whereIn('role', User::ASSIGNEE_ROLES)
+        $staff = $request->user()->membersInStore()->where('active', true)->whereIn('role', User::ASSIGNEE_ROLES)
+            ->whereHas('stores', fn ($q) => $q->where('stores.id', $request->user()->storeId())->where('store_user.active', true))
             ->leftJoin('company_policy_acknowledgements as ack', function ($join) use ($company, $current) {
                 $join->on('ack.user_id', '=', 'users.id')->where('ack.company_id', $company->id)->where('ack.policy_version_id', $current?->id ?? 0);
             })->select(['users.id', 'users.name', 'users.role', 'ack.acknowledged_at'])

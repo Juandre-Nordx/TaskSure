@@ -41,8 +41,8 @@ class CalendarEvents
             return $events;
         }
         $templates = TaskTemplate::where('active', true)
+            ->where('store_id', $user->storeId())
             ->whereIn('employee_id', $user->visibleEmployees()->select('users.id'))
-            ->whereHas('creator', fn ($q) => $q->where('company_id', $user->company_id))
             ->when(($filters['scope'] ?? null) === 'my', fn ($q) => $q->where('employee_id', $user->id))
             ->when(($filters['scope'] ?? null) === 'team', fn ($q) => $q->where('employee_id', '!=', $user->id))
             ->with(['employee', 'creator']);

@@ -2,6 +2,8 @@
 
 `mobile/` is a separate TypeScript/Vite/Tailwind CSS 4 app with Capacitor 8 Android and iOS projects. It bundles its HTML, JavaScript, CSS and calendar code into the native app. Capacitor has **no `server.url`**: it never loads the Railway website as its production interface. Laravel remains the backend, with the existing Blade manager/owner dashboard, PostgreSQL, queue and scheduler.
 
+Super Admin is web-only and cannot sign into this API. Managers and employees can switch authorised stores in Settings. Each token binds a selected store; switching clears prior-store state, checks company policy and re-registers push. Follow [the multi-store release guide](MULTI-STORE.md) for migration and the current Android update (**versionCode 6 / versionName 1.5**).
+
 ## Build and run
 
 Use Node 24, and run commands from `mobile/`:
@@ -25,7 +27,7 @@ iOS requires macOS/Xcode compatible with Capacitor 8, an Apple developer team an
 ## Deploy the Laravel API to Railway
 
 1. Deploy the updated Laravel source using the existing root Dockerfile and PostgreSQL service. The Docker context excludes `mobile/`; the native frontend is built separately. Preserve the existing `APP_KEY`, database, evidence volume and dashboard configuration.
-2. Keep the existing pre-deploy command `php artisan migrate --force`. Review pending migrations before the controlled pre-deploy step. The completion/review migration converts legacy statuses while retaining audit records; follow [the release guide](COMPLETION-REVIEW-RELEASE.md). Do not seed production.
+2. For multi-store deployment, first follow the coordinated maintenance window in [MULTI-STORE.md](MULTI-STORE.md). Keep the existing pre-deploy command `php artisan migrate --force`. Review pending migrations before the controlled pre-deploy step. The completion/review migration converts legacy statuses while retaining audit records; follow [the release guide](COMPLETION-REVIEW-RELEASE.md). Do not seed production.
 3. Set `MOBILE_ALLOWED_ORIGINS=capacitor://localhost,https://localhost` on web. Android uses `https://localhost` and iOS uses `capacitor://localhost`. If publishing a separate browser build, append its exact HTTPS origin. CORS uses bearer authorization and does not allow credentialed cookies or wildcard origins.
 4. Keep the existing database queue worker and scheduler running. Initially use `MOBILE_PUSH_ENABLED=false` on all services. Native push needs the provider configuration below; in-app alerts work independently.
 5. Confirm `/health` works and unauthenticated `GET /api/mobile/v1/me` returns JSON HTTP 401. Sign in with an existing active **employee or manager** account from the app. Owners continue using Blade; managers retain their Blade dashboard too.

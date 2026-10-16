@@ -21,7 +21,7 @@ class CompanyPolicyUpgradeTest extends TestCase
         try {
             $policyPath = database_path('migrations/2026_10_14_000002_create_company_policies.php');
             foreach (glob(database_path('migrations/*.php')) as $path) {
-                if ($path !== $policyPath) {
+                if ($path !== $policyPath && ! str_contains($path, '2026_10_16_000001')) {
                     (require $path)->up();
                 }
             }
@@ -59,7 +59,9 @@ class CompanyPolicyUpgradeTest extends TestCase
             $this->assertSame(0, DB::table('company_policy_versions')->count());
             $this->assertSame(0, DB::table('company_policy_acknowledgements')->count());
 
-            // The same existing owner can use the dashboard after the forward upgrade.
+            // The current application also needs its subsequent store migration.
+            (require database_path('migrations/2026_10_16_000001_add_store_workspaces.php'))->up();
+            // The same existing owner can use the dashboard after the forward upgrades.
             $this->actingAs(User::findOrFail(1))->get('/')->assertOk();
 
             // Account creation by the previous release omits company_id during deployment.

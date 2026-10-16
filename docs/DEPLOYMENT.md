@@ -10,6 +10,8 @@ For company-policy management and mandatory staff acknowledgement, follow the [p
 
 For assignment-time recurrence and pause/resume, follow the [recurring-task release guide](RECURRING-TASKS.md#controlled-railway-release), including the additive migration, Android rebuild and missing-scheduler setup. Future occurrences require `PROCESS_ROLE=scheduler`; a queue worker alone does not generate them.
 
+For the multi-store release, follow [MULTI-STORE.md](MULTI-STORE.md) first. Stop old writers during the store-scope/settings copy, preserve the existing database and evidence volume, and release web/worker/scheduler together. Super Admin setup is explicit and web-only.
+
 ## Deployment checklist
 
 1. **Open your Railway project and check PostgreSQL.** Use your existing PostgreSQL service in the same project/environment. Create one with **New → Database → PostgreSQL** only if you do not already have one. Back up an existing database before migrations. The examples use the service name `Postgres`; replace that name in variable references if yours differs.
@@ -55,7 +57,7 @@ For assignment-time recurrence and pause/resume, follow the [recurring-task rele
 
 7. **Create the worker and scheduler services.** Add two services from the same GitHub repository/branch and Dockerfile. Give both the same `APP_KEY`, `APP_URL`, PostgreSQL references, session/cache/queue and mail variables as web. Set `PROCESS_ROLE=worker` on one and `PROCESS_ROLE=scheduler` on the other. Keep one replica each and an on-failure restart policy. Set no pre-deploy command or HTTP healthcheck on these two services. They need no public domain or evidence volume. Deploy them after web's migrations succeed. Do not enable service sleeping/serverless mode on these long-running processes.
 
-8. **Create the first administrator.** Install/login to the Railway CLI and link this project/environment. Open the running web container:
+8. **Create the first administrator.** For a multi-store installation, use [Super Admin setup and store provisioning](MULTI-STORE.md#create-the-first-super-admin). The legacy command below is for an initial single-store local/bootstrap owner; existing owners are preserved by the store migration. Install/login to the Railway CLI and link this project/environment. Open the running web container:
 
    ```sh
    railway ssh --service web

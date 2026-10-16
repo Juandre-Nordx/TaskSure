@@ -6,7 +6,7 @@
 @if(auth()->user()->role==='admin')<p class="field-help">Email: {{ $a->email_status }} {{ $a->delivery_error }}</p>
 @endif</div>
 @if(!$a->read_at)<form method="post" action="/notifications/{{ $a->id }}/read">
-@csrf<button class="btn">Mark read</button></form>
+@csrf @include('partials.store-context')<button class="btn">Mark read</button></form>
 @endif</div>
 @empty<div class="empty">You're all caught up. Updates will appear here.</div>
 @endforelse<div style="margin-top:20px">{{ $alerts->links() }}</div></section>
