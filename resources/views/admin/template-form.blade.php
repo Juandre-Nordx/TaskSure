@@ -1,5 +1,5 @@
 <form method="post" action="/admin/templates{{ isset($template)?'/'.$template->id:'' }}">
-@csrf
+@csrf @include('partials.store-context')
 @include('partials.task-fields')<div class="form-grid" style="margin-top:20px"><div><label>Repeat</label><select name="frequency">
 @foreach(['daily','weekly','monthly'] as $v)<option
 @selected(($template->frequency??'daily')===$v)>{{ $v }}</option>

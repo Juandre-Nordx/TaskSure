@@ -1,0 +1,3 @@
+@extends('auth.layout')
+@section('title','Choose a store')
+@section('content')<h1>Choose a store</h1><p class="muted" style="margin:20px 0">Only stores authorised for your account appear here.</p>@forelse($stores as $store)<form method="post" action="/stores/select">@csrf @include('partials.store-context')<input type="hidden" name="store_id" value="{{ $store->id }}"><button class="btn" style="white-space:normal">{{ $store->company->name }} · {{ $store->name }}{{ $store->active?'':' · Inactive' }}</button></form>@empty<p>No store access is available. Contact your administrator.</p>@endforelse<form method="post" action="/logout">@csrf @include('partials.store-context')<button class="btn">Sign out</button></form>@endsection

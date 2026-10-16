@@ -4,15 +4,19 @@ use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileNotificationController;
 use App\Http\Controllers\Api\MobileTaskController;
 use App\Http\Controllers\CompanyPolicyController;
+use App\Http\Controllers\StoreController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskRecurrenceController;
 use App\Http\Middleware\MobileEmployee;
 use App\Http\Middleware\RequireCompanyPolicy;
+use App\Http\Middleware\ResolveStore;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('mobile/v1')->group(function () {
     Route::post('/login', [MobileAuthController::class, 'login'])->middleware('throttle:login');
-    Route::middleware(['auth:sanctum', MobileEmployee::class, RequireCompanyPolicy::class, 'throttle:mobile'])->group(function () {
+    Route::middleware(['auth:sanctum', MobileEmployee::class, ResolveStore::class, RequireCompanyPolicy::class, 'throttle:mobile'])->group(function () {
+        Route::get('/stores', [StoreController::class, 'index'])->name('mobile.stores.index');
+        Route::post('/stores/select', [StoreController::class, 'select'])->name('mobile.stores.select');
         Route::get('/me', [MobileAuthController::class, 'me'])->name('mobile.me');
         Route::post('/logout', [MobileAuthController::class, 'logout'])->name('mobile.logout');
         Route::get('/company-policy', [CompanyPolicyController::class, 'show'])->name('mobile.policy.show');

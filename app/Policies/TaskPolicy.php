@@ -9,7 +9,7 @@ class TaskPolicy
 {
     public function view(User $u, Task $t): bool
     {
-        return $u->active && $u->company_id !== null && $u->company_id === $t->employee->company_id && ($u->role === 'admin' || (in_array($u->role, User::ASSIGNEE_ROLES) && $t->employee_id === $u->id) || ($u->role === 'manager' && $u->canManageEmployee($t->employee)));
+        return $u->inStore($t->store_id) && $u->storeId() === $t->store_id && ($u->role === 'admin' || (in_array($u->role, User::ASSIGNEE_ROLES) && $t->employee_id === $u->id) || ($u->role === 'manager' && $u->canManageEmployee($t->employee, $t->store_id)));
     }
 
     public function manage(User $u, Task $t): bool
@@ -19,7 +19,7 @@ class TaskPolicy
 
     public function work(User $u, Task $t): bool
     {
-        return $u->active && in_array($u->role, User::ASSIGNEE_ROLES) && $t->employee_id === $u->id && in_array($t->status, ['assigned', 'in_progress']);
+        return $this->view($u, $t) && in_array($u->role, User::ASSIGNEE_ROLES) && $t->employee_id === $u->id && in_array($t->status, ['assigned', 'in_progress']);
     }
 
     public function review(User $u, Task $t): bool

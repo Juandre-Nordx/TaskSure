@@ -33,7 +33,7 @@ class ScheduledTasks
                     if ($date > $today && (! $start || $start->isFuture())) {
                         break;
                     }
-                    $t = Task::firstOrCreate(['task_template_id' => $p->id, 'occurrence_date' => $date], ['employee_id' => $p->employee_id, 'creator_id' => $p->creator_id, 'category_id' => $p->category_id, 'title' => $p->title, 'instructions' => $p->instructions, 'area' => $p->area, 'priority' => $p->priority, 'required_evidence' => $p->required_evidence, 'due_at' => $due, 'scheduled_at' => $start]);
+                    $t = Task::firstOrCreate(['task_template_id' => $p->id, 'occurrence_date' => $date], ['store_id' => $p->store_id, 'employee_id' => $p->employee_id, 'creator_id' => $p->creator_id, 'category_id' => $p->category_id, 'title' => $p->title, 'instructions' => $p->instructions, 'area' => $p->area, 'priority' => $p->priority, 'required_evidence' => $p->required_evidence, 'due_at' => $due, 'scheduled_at' => $start]);
                     if ($t->wasRecentlyCreated) {
                         $count++;
                         $t->activities()->create(['user_id' => $p->creator_id, 'type' => 'assigned', 'body' => 'Recurring occurrence generated.']);
@@ -50,12 +50,16 @@ class ScheduledTasks
     public function reminders(): int
     {
         $count = 0;
-        $minutes = (int) (DB::table('settings')->where('key', 'reminder_minutes')->value('value') ?? config('tasksure.reminder_minutes'));
-        Task::with('employee')->whereNotIn('status', ['completed', 'cancelled'])->where('due_at', '<=', now()->addMinutes($minutes))->chunkById(100, function ($tasks) use (&$count) {
+        Task::with(['employee', 'store'])->whereNotIn('status', ['completed', 'cancelled'])->where('due_at', '<=', now()->addMinutes(10080))->chunkById(100, function ($tasks) use (&$count) {
             foreach ($tasks as $t) {
-                if (! $t->employee->active) {
+                if (! $t->store->active || ! $t->employee->inStore($t->store_id)) {
                     continue;
-                }$type = $t->due_at->isPast() ? 'overdue' : 'upcoming';
+                }
+                $minutes = (int) (DB::table('store_settings')->where('store_id', $t->store_id)->where('key', 'reminder_minutes')->value('value') ?? config('tasksure.reminder_minutes'));
+                if ($t->due_at->gt(now()->addMinutes($minutes))) {
+                    continue;
+                }
+                $type = $t->due_at->isPast() ? 'overdue' : 'upcoming';
                 $key = $type.':'.$t->id.':'.$t->due_at->timestamp;
                 $this->alerts->send($t->employee, $t, $type, $t->title.($type === 'overdue' ? ' is overdue.' : ' is due soon.'), $key);
                 $this->alerts->reviewers($t, $type, $t->title.($type === 'overdue' ? ' is overdue.' : ' is due soon.'), $key.':reviewer');

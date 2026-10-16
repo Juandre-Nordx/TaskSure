@@ -38,7 +38,7 @@ class MobileTaskController extends Controller
     {
         abort_unless($request->user()->isSupervisor(), 403);
 
-        return response()->json(['assignees' => $request->user()->visibleEmployees()->where('active', true)->orderBy('name')->get(['id', 'name', 'role']), 'categories' => Category::orderBy('name')->get(['id', 'name'])]);
+        return response()->json(['assignees' => $request->user()->assignableEmployees()->orderBy('name')->get(['id', 'name', 'role']), 'categories' => Category::forStore($request->user())->orderBy('name')->get(['id', 'name'])]);
     }
 
     public function show(Task $task, Request $request)

@@ -27,7 +27,7 @@ class TaskRecurrence
             $date = BusinessTime::show($original->due_at, 'Y-m-d');
             $plan = new TaskTemplate($original->only(['employee_id', 'category_id', 'title', 'instructions', 'area', 'priority', 'required_evidence']));
             $plan->fill([
-                'creator_id' => $actor->id, 'frequency' => $frequency,
+                'creator_id' => $actor->id, 'store_id' => $original->store_id, 'frequency' => $frequency,
                 'anchor_day' => (int) substr($firstRepeat ?? $date, 8, 2),
                 'due_time' => BusinessTime::show($original->due_at, 'H:i'),
                 'ends_on' => $endsOn,

@@ -253,8 +253,8 @@ class CompanyPolicyTest extends TestCase
     public function test_unlinked_accounts_are_blocked_from_features_but_can_still_sign_out(): void
     {
         foreach ([$this->owner, $this->manager, $this->employee] as $person) {
-            $person->update(['company_id' => null]);
-            $this->actingAs($person)->get('/')->assertForbidden()->assertSee('A company account is required.');
+            $person->stores()->detach();
+            $this->actingAs($person)->get('/')->assertForbidden()->assertSee('Store access is unavailable.');
             $this->post('/logout')->assertRedirect('/login');
         }
 

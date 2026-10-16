@@ -51,7 +51,7 @@ class RecurringCalendarTest extends TestCase
 
     private function web(User $user, array $filters = []): array
     {
-        return $this->actingAs($user)->getJson('/calendar/events?'.http_build_query($filters + ['from' => '2026-10-15', 'to' => '2026-10-21']))->assertOk()->assertHeader('Cache-Control', 'no-store, private')->json();
+        return $this->actingAs($user)->withSession(['workspace.store_id' => $user->storeId()])->getJson('/calendar/events?'.http_build_query($filters + ['from' => '2026-10-15', 'to' => '2026-10-21']))->assertOk()->assertHeader('Cache-Control', 'no-store, private')->json();
     }
 
     private function mobile(User $user, array $filters = [])

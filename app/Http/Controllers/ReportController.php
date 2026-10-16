@@ -38,11 +38,13 @@ class ReportController extends Controller
                     }$sheet->freezePane('A2');
                 }
             }$meta = $book->createSheet()->setTitle('Metric definitions');
-            $meta->fromArray([['Timezone', 'Africa/Johannesburg'], ['Date basis', $filters['basis'] ?? 'due'], ['From', $filters['from'] ?? 'All time'], ['To', $filters['to'] ?? 'All time'], ['Filters', json_encode($filters)], ['First completion on-time denominator', 'Non-cancelled tasks with a first completion; compared to the deadline retained on that attempt.'], ['Counts', 'Selected cohort, assigned/created, due, completed or reviewed in period according to chosen basis. Not a productivity score.'], ['Latest punctuality', 'Latest completion against its own retained deadline. Optional review does not affect punctuality.'], ['Review', 'Completed task counts and optional Reviewed / Not reviewed counts are separate. Missing historical timestamps remain unknown.'], ['Pending', 'Assigned and in progress; reopened work returns to Assigned.'], ['Elapsed time', 'Not hours worked. No time tracking.']]);
+            $meta->fromArray([['Company', ''], ['Store', ''], ['Timezone', 'Africa/Johannesburg'], ['Date basis', $filters['basis'] ?? 'due'], ['From', $filters['from'] ?? 'All time'], ['To', $filters['to'] ?? 'All time'], ['Filters', json_encode($filters)], ['First completion on-time denominator', 'Non-cancelled tasks with a first completion; compared to the deadline retained on that attempt.'], ['Counts', 'Selected cohort, assigned/created, due, completed or reviewed in period according to chosen basis. Not a productivity score.'], ['Latest punctuality', 'Latest completion against its own retained deadline. Optional review does not affect punctuality.'], ['Review', 'Completed task counts and optional Reviewed / Not reviewed counts are separate. Missing historical timestamps remain unknown.'], ['Pending', 'Assigned and in progress; reopened work returns to Assigned.'], ['Elapsed time', 'Not hours worked. No time tracking.']]);
+            $meta->setCellValueExplicit('B1', $data['workspace']?->company->name ?? '', DataType::TYPE_STRING);
+            $meta->setCellValueExplicit('B2', $data['workspace']?->name ?? '', DataType::TYPE_STRING);
 
             return response()->streamDownload(fn () => (new Xlsx($book))->save('php://output'), 'tasksure-report.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
         }
 
-        return view('reports.index', $data + ['employees' => $r->user()->visibleEmployees()->get(), 'categories' => Category::all()]);
+        return view('reports.index', $data + ['employees' => $r->user()->visibleEmployees()->get(), 'categories' => Category::forStore($r->user())->get()]);
     }
 }

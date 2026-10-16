@@ -241,7 +241,7 @@ class TaskSureTest extends TestCase
         $this->get('/admin/users')->assertOk();
         $this->get('/calendar')->assertOk();
         $this->post('/admin/reminders', ['reminder_minutes' => 90])->assertRedirect();
-        $this->assertDatabaseHas('settings', ['key' => 'reminder_minutes', 'value' => '90']);
+        $this->assertDatabaseHas('store_settings', ['store_id' => $this->admin->storeId(), 'key' => 'reminder_minutes', 'value' => '90']);
     }
 
     public function test_completed_and_cancelled_tasks_are_closed(): void

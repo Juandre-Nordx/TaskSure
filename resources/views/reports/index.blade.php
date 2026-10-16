@@ -1,7 +1,7 @@
 
 @extends('layout')
 @section('title','Reports')
-@section('content')<div class="pagehead"><div><p class="eyebrow">CLEAR RECORDS, FAIR CONTEXT</p><h1>{{ request('employee_id')?'Individual work report':'Team comparison' }}</h1><p class="muted" style="margin-top:9px">Assignments, completions and optional reviews. Every number has a basis.</p></div><div class="small-links"><a class="btn" href="{{ request()->fullUrlWithQuery(['format'=>'pdf']) }}">↓ PDF</a><a class="btn primary" href="{{ request()->fullUrlWithQuery(['format'=>'xlsx']) }}">↓ Excel</a></div></div><section class="card" style="margin-bottom:22px"><form method="get">
+@section('content')<div class="pagehead"><div><p class="eyebrow">CLEAR RECORDS, FAIR CONTEXT</p><p class="muted">{{ $workspace?->company->name }} · {{ $workspace?->name }}</p><h1>{{ request('employee_id')?'Individual work report':'Team comparison' }}</h1><p class="muted" style="margin-top:9px">Assignments, completions and optional reviews. Every number has a basis.</p></div><div class="small-links"><a class="btn" href="{{ request()->fullUrlWithQuery(['format'=>'pdf']) }}">↓ PDF</a><a class="btn primary" href="{{ request()->fullUrlWithQuery(['format'=>'xlsx']) }}">↓ Excel</a></div></div><section class="card" style="margin-bottom:22px"><form method="get">
 @include('partials.filters')<div class="filter-bar"><div><label>Date basis</label><select name="basis">
 @foreach(['due'=>'Tasks due in period','assigned'=>'Tasks assigned in period','completed'=>'Tasks completed in period','reviewed'=>'Tasks reviewed in period'] as $k=>$v)<option value="{{ $k }}"
 @selected(request('basis','due')===$k)>{{ $v }}</option>

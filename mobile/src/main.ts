@@ -28,7 +28,7 @@ let teamFilters = new URLSearchParams();
 let reviewFilters = new URLSearchParams();
 let policyLocked = false;
 let pushReady = false;
-let restoredPhoto: { taskId: number; userId: number; data: MediaResult } | null = null;
+let restoredPhoto: { taskId: number; userId: number; storeId: number | null; data: MediaResult } | null = null;
 let retainedPhoto: { taskId: number; file: File } | null = null;
 
 const icons: Record<string, string> = {
@@ -57,7 +57,7 @@ const empty = (text: string) => `<div class="card empty">${e(text)}</div>`;
 function shell(active: string) {
   const tabs = profile!.user.role === 'manager' ? ['tasks', 'team', 'calendar', 'notifications', 'settings'] : ['tasks', 'calendar', 'submissions', 'notifications', 'settings'];
   const initials = profile!.user.name.split(' ').map(v => v[0]).slice(0, 2).join('');
-  root.innerHTML = `<div class="app-shell"><header class="topbar"><a href="#/tasks" class="brand"><img class="brandmark" src="./tasksure-icon.svg" alt="" width="35" height="35">TaskSure</a><a href="#/settings" aria-label="Account settings" class="avatar">${e(initials)}</a></header><main class="content" id="content" tabindex="-1"><p class="muted" role="status">Loading your work…</p></main><nav class="bottom-nav" aria-label="Main navigation">${tabs.map(tab => `<a href="#/${tab}" class="${active === tab ? 'current' : ''}" ${active === tab ? 'aria-current="page"' : ''}>${icon(tab)}${({ tasks: 'My tasks', team: 'Team tasks', submissions: 'History', notifications: 'Updates' } as Record<string, string>)[tab] || tab[0].toUpperCase() + tab.slice(1)}</a>`).join('')}</nav></div>`;
+  root.innerHTML = `<div class="app-shell"><header class="topbar"><a href="#/tasks" class="brand"><img class="brandmark" src="./tasksure-icon.svg" alt="" width="35" height="35">TaskSure</a><a href="#/settings" aria-label="Account settings" class="avatar">${e(initials)}</a></header><div class="workspace-banner">${e(profile!.store?.company_name)} · ${e(profile!.store?.name)}</div><main class="content" id="content" tabindex="-1"><p class="muted" role="status">Loading your work…</p></main><nav class="bottom-nav" aria-label="Main navigation">${tabs.map(tab => `<a href="#/${tab}" class="${active === tab ? 'current' : ''}" ${active === tab ? 'aria-current="page"' : ''}>${icon(tab)}${({ tasks: 'My tasks', team: 'Team tasks', submissions: 'History', notifications: 'Updates' } as Record<string, string>)[tab] || tab[0].toUpperCase() + tab.slice(1)}</a>`).join('')}</nav></div>`;
 }
 
 function login() {
@@ -83,7 +83,7 @@ function login() {
       // If secure storage fails, revoke the newly issued token rather than leaving a stray session.
       api.setToken(data.token);
       try { await saveSession(data.token); } catch { await api.post('/logout'); throw new Error('Could not save a secure sign-in on this phone.'); }
-      profile = data; form.reset();
+      profile = data; api.setStore(data.store?.id ?? null); form.reset();
       location.hash = '/tasks'; await render();
     } catch (err) { error.textContent = message(err); }
     finally { button.disabled = false; }
@@ -109,11 +109,49 @@ async function signOut() {
 }
 
 async function localSignOut() {
-  profile = null; policyLocked = false; pushReady = false; notes.clear(); teamFilters = new URLSearchParams(); reviewFilters = new URLSearchParams(); retainedPhoto = null; restoredPhoto = null; releasePage();
+  profile = null; api.setStore(null); policyLocked = false; pushReady = false; notes.clear(); teamFilters = new URLSearchParams(); reviewFilters = new URLSearchParams(); retainedPhoto = null; restoredPhoto = null; releasePage();
   await stopPush(); await clearEvidenceCache(); await clearCameraTask(); await clearSession(); login();
 }
 api.onUnauthorized = () => { if (profile) { void localSignOut(); toast('Your sign-in expired. Please sign in again.'); } };
 api.onPolicyRequired = policy => { if (profile) showPolicy(policy, true); };
+
+function storeChoices(data: Profile): string {
+  return `<form id="store-choice" class="field"><label for="chosen-store">Store</label><select id="chosen-store" name="store_id" required>${(data.stores || []).map(store => `<option value="${store.id}" ${store.id === data.store?.id ? 'selected' : ''}>${e(store.company_name)} · ${e(store.name)}${store.active ? '' : ' · Inactive'}</option>`).join('')}</select><p id="store-error" class="error" role="alert"></p><button class="btn primary mt-3" ${data.stores?.length ? '' : 'disabled'}>Switch store</button></form>`;
+}
+function bindStoreChoices(content: HTMLElement) {
+  content.querySelector<HTMLFormElement>('#store-choice')?.addEventListener('submit', event => {
+    event.preventDefault(); void selectStore(Number(content.querySelector<HTMLSelectElement>('#chosen-store')!.value));
+  });
+}
+function showStoreChoices(data: Profile, error = '') {
+  releasePage(); pageVersion++; policyLocked = true;
+  root.innerHTML = `<main class="auth-form"><section class="card"><h1>${data.store_available ? 'Choose your store' : 'Store unavailable'}</h1><p class="muted mt-4">${e(error || (data.store?.active === false ? 'This store is inactive. Select another authorised store or contact your administrator.' : 'Select an authorised store to continue.'))}</p>${storeChoices(data)}<button class="btn full mt-4" id="store-logout">Sign out</button></section></main>`;
+  bindStoreChoices(root); root.querySelector<HTMLButtonElement>('#store-logout')!.onclick = () => void signOut();
+}
+async function clearWorkspaceData() {
+  releasePage(); notes.clear(); retainedPhoto = null; restoredPhoto = null; teamFilters = new URLSearchParams(); reviewFilters = new URLSearchParams(); taskFilter = 'open'; taskSearch = ''; pushReady = false;
+  await Promise.all([stopPush(), clearEvidenceCache(), clearCameraTask()]);
+}
+async function selectStore(id: number) {
+  if (! profile) return;
+  const before = profile; const operation = ++pageVersion; policyLocked = true; api.setStore(null);
+  root.innerHTML = '<main class="auth-form"><p role="status">Changing store…</p></main>';
+  try {
+    await clearWorkspaceData();
+    const latest = await api.post<Profile>('/stores/select', { store_id: id });
+    if (! profile || operation !== pageVersion) return;
+    profile = latest; api.setStore(latest.store?.id ?? null); policyLocked = false; navigate('/tasks');
+  } catch (error) { if (profile && operation === pageVersion) showStoreChoices(before, message(error)); }
+}
+api.onStoreUnavailable = error => {
+  if (! profile) return;
+  const before = profile; const operation = ++pageVersion; policyLocked = true; api.setStore(null);
+  root.innerHTML = '<main class="auth-form"><p role="status">Refreshing store access…</p></main>';
+  void clearWorkspaceData().then(async () => {
+    const latest = await api.request<Profile>('/me'); if (! profile || operation !== pageVersion) return; profile = latest; api.setStore(latest.store?.id ?? null);
+    showStoreChoices(latest, error);
+  }).catch(() => { if (profile && operation === pageVersion) showStoreChoices(before, error); });
+};
 
 function taskCard(task: Task, submissions = false) {
   return `<a href="#/tasks/${task.id}" class="card task-card"><div class="card-head"><span class="eyebrow mb-0">${e(task.category.name)}</span><span class="priority ${e(task.priority)}">${e(task.priority)}</span></div><h2>${e(task.title)}</h2><p class="muted">${e(task.area)} · ${e(task.assignee.name)} (${e(task.assignee.role)})</p><div class="badges"><span class="badge ${e(task.status)}">${e(task.status_label)}</span>${task.overdue ? '<span class="badge overdue">Overdue</span>' : ''}${task.status === 'completed' ? `<span class="badge">${task.review_status === 'reviewed' ? 'Reviewed' : 'Not reviewed'}</span>` : ''}</div>${submissions ? `<p class="field-help">${task.submission_count || 0} completion attempt(s) · View evidence and feedback</p>` : ''}<div class="deadline"><span>Due ${e(date(task.due_at))}</span><strong>View →</strong></div></a>`;
@@ -203,7 +241,7 @@ async function taskDetails(id: number, content: HTMLElement, version: number) {
       file.addEventListener('change', () => { void upload(file.files?.[0]); file.remove(); });
       file.addEventListener('cancel', () => file.remove()); content.append(file); file.click(); return;
     }
-    try { const file = await capturePhoto(id, profile!.user.id); retainedPhoto = { taskId: id, file }; await upload(file); } catch (err) { content.querySelector('#upload-error')!.textContent = message(err); }
+    try { const storeId = api.getStore(); const userId = profile!.user.id; const file = await capturePhoto(id, userId); if (storeId !== api.getStore() || userId !== profile?.user.id) return; retainedPhoto = { taskId: id, file }; await upload(file); } catch (err) { content.querySelector('#upload-error')!.textContent = message(err); }
   });
   if (retainedPhoto?.taskId === id) content.querySelector('#upload-status')!.textContent = 'Your camera photo is ready. Tap Upload selected file to send it.';
   await bindEvidence(content, [...task.draft_evidence, ...task.submissions.flatMap(s => s.attachments)], version);
@@ -275,7 +313,8 @@ async function notifications(content: HTMLElement, version: number, page = 1) {
 
 async function settings(content: HTMLElement, version: number) {
   const enabled = await pushEnabled(); if (version !== pageVersion) return;
-  content.innerHTML = pagehead('Settings', 'Your account and phone preferences.') + `<div class="stack"><section class="card"><p class="eyebrow">YOUR ACCOUNT</p><h2>${e(profile!.user.name)}</h2><p class="muted mt-2">${e(profile!.user.email)}</p><p class="field-help">${e(label(profile!.user.role))} · Account details are managed by your store owner.</p></section><section class="card"><h2>Notifications</h2><p class="muted mt-2">In-app updates are always available. Enable push to receive task updates on this phone.</p><p class="field-help">Phone notifications: ${enabled ? 'Enabled' : 'Disabled'}</p>${! profile!.config.push_enabled ? '<p class="notice">Your store has not enabled native push delivery yet. Updates remain available in the app.</p>' : ''}<button class="btn mt-4" id="push" ${! profile!.config.push_enabled || ! Capacitor.isNativePlatform() ? 'disabled' : ''}>${enabled ? 'Disable' : 'Enable'} push notifications</button>${! Capacitor.isNativePlatform() ? '<p class="field-help">Install the Android or iOS app to use push notifications.</p>' : ''}</section><section class="card"><h2>Company policy</h2><p class="field-help">Read the current published policy and your acknowledgement.</p><a class="btn mt-4" href="#/company-policy">Read company policy</a></section><section class="card"><h2>Time & evidence</h2><p class="field-help">All deadlines display in South African time (${e(profile!.config.timezone)}).</p><p class="field-help">Photos and PDFs: up to ${(profile!.config.upload_max_kb / 1024).toFixed(1)} MB each. Uploads require an internet connection.</p></section><section class="card"><h2>Sign out</h2><p class="muted mt-2">Ends this phone’s sign-in and removes its push subscription. An internet connection is required.</p><button class="btn danger full mt-4" id="logout">Sign out</button></section></div>`;
+  content.innerHTML = pagehead('Settings', 'Your account and phone preferences.') + `<div class="stack"><section class="card"><p class="eyebrow">YOUR ACCOUNT</p><h2>${e(profile!.user.name)}</h2><p class="muted mt-2">${e(profile!.user.email)}</p><p class="field-help">${e(label(profile!.user.role))} · Account details are managed by your store owner.</p></section><section class="card"><h2>Your store</h2><p class="muted mt-2">${e(profile!.store?.company_name)} · ${e(profile!.store?.name)}</p>${storeChoices(profile!)}</section><section class="card"><h2>Notifications</h2><p class="muted mt-2">In-app updates are always available. Enable push to receive task updates on this phone.</p><p class="field-help">Phone notifications: ${enabled ? 'Enabled' : 'Disabled'}</p>${! profile!.config.push_enabled ? '<p class="notice">Your store has not enabled native push delivery yet. Updates remain available in the app.</p>' : ''}<button class="btn mt-4" id="push" ${! profile!.config.push_enabled || ! Capacitor.isNativePlatform() ? 'disabled' : ''}>${enabled ? 'Disable' : 'Enable'} push notifications</button>${! Capacitor.isNativePlatform() ? '<p class="field-help">Install the Android or iOS app to use push notifications.</p>' : ''}</section><section class="card"><h2>Company policy</h2><p class="field-help">Read the current published policy and your acknowledgement.</p><a class="btn mt-4" href="#/company-policy">Read company policy</a></section><section class="card"><h2>Time & evidence</h2><p class="field-help">All deadlines display in South African time (${e(profile!.config.timezone)}).</p><p class="field-help">Photos and PDFs: up to ${(profile!.config.upload_max_kb / 1024).toFixed(1)} MB each. Uploads require an internet connection.</p></section><section class="card"><h2>Sign out</h2><p class="muted mt-2">Ends this phone’s sign-in and removes its push subscription. An internet connection is required.</p><button class="btn danger full mt-4" id="logout">Sign out</button></section></div>`;
+  bindStoreChoices(content);
   content.querySelector<HTMLButtonElement>('#push')!.onclick = async event => {
     const button = event.currentTarget as HTMLButtonElement; button.disabled = true;
     try { if (enabled) { await disablePush(); toast('Push notifications disabled.'); } else toast(await enablePush()); await render(); } catch (err) { toast(message(err)); } finally { button.disabled = false; }
@@ -292,6 +331,12 @@ async function render() {
   try {
     root.innerHTML = '<main class="auth-form"><p role="status">Checking company policy…</p><button class="btn" id="policy-logout">Sign out</button></main>';
     root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
+    const latest = await api.request<Profile>('/me');
+    if (version !== pageVersion || ! profile) return;
+    if (profile.store?.id !== latest.store?.id) await clearWorkspaceData();
+    if (version !== pageVersion) return;
+    profile = latest; api.setStore(latest.store?.id ?? null);
+    if (! latest.store_available) { showStoreChoices(latest); return; }
     const state = await api.request<PolicyState>('/company-policy');
     if (version !== pageVersion || ! profile) return;
     if (state.required && state.policy) { showPolicy(state.policy, true); return; }
@@ -335,7 +380,7 @@ window.addEventListener('offline', () => toast('You’re offline. Reconnect befo
 async function boot() {
   root.innerHTML = '<main class="auth-form"><p role="status">Opening TaskSure…</p></main>';
   try {
-    if (await restoreSession()) { profile = await api.request<Profile>('/me'); await recoverCamera(); await render(); }
+    if (await restoreSession()) { profile = await api.request<Profile>('/me'); api.setStore(profile.store?.id ?? null); await recoverCamera(); await render(); }
     else login();
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) { await clearSession(); login(); }
@@ -356,9 +401,11 @@ if (Capacitor.isNativePlatform()) {
 async function recoverCamera() {
   if (! restoredPhoto || ! profile) return;
   const restored = restoredPhoto; restoredPhoto = null; await clearCameraTask();
-  if (restored.userId !== profile.user.id) return;
+  if (! profile || restored.userId !== profile.user.id || restored.storeId !== profile.store?.id) return;
   try {
-    retainedPhoto = { taskId: restored.taskId, file: await photoFile(restored.data) };
+    const file = await photoFile(restored.data);
+    if (! profile || restored.userId !== profile.user.id || restored.storeId !== api.getStore()) return;
+    retainedPhoto = { taskId: restored.taskId, file };
     location.hash = `/tasks/${restored.taskId}`;
     toast('Your camera photo was recovered. Review the task and tap Upload selected file to send it.');
   } catch (err) { toast(message(err)); }
@@ -371,6 +418,7 @@ function showPolicy(policy: CompanyPolicy, required: boolean, acknowledgedAt: st
   if (required) pushReady = false;
   // Destroy any open evidence dialogs and normal navigation while locked.
   root.innerHTML = policyScreen(policy, required, acknowledgedAt);
+  if ((profile.stores || []).length > 1) { const button = document.createElement('button'); button.className = 'btn full mt-3'; button.textContent = 'Switch store'; button.onclick = () => showStoreChoices(profile!); root.querySelector('.policy-dialog')!.append(button); }
   root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
   root.querySelector<HTMLButtonElement>('#policy-reload')!.onclick = () => void render();
   root.querySelector<HTMLButtonElement>('#policy-continue')?.addEventListener('click', () => navigate('/tasks'));

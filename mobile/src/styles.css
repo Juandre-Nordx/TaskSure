@@ -101,3 +101,5 @@ progress { width: 100%; accent-color: var(--forest); margin-top: 12px; }
 .check input { width: 20px; min-height: 20px; flex-shrink: 0; }
 
 .policy-gate{min-height:100dvh;padding:calc(18px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));display:grid;place-items:center}.policy-dialog{width:100%;max-width:760px}.policy-dialog .brand{color:var(--forest);font-size:22px}.policy-content{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;max-height:45dvh;overflow-y:auto;border:1px solid var(--line);border-radius:9px;padding:18px;margin:20px 0;background:#fafcf8}.policy-dialog .check{align-items:flex-start}
+
+.workspace-banner { padding: 10px 18px; color: var(--muted); background: white; border-bottom: 1px solid var(--line); font-size: 12px; overflow-wrap: anywhere; }

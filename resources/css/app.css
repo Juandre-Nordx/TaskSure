@@ -8,3 +8,5 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-sa
 .today-list{max-height:460px;overflow:auto}
 
 .policy-gate{min-height:100dvh;display:grid;place-items:center;padding:24px 16px}.policy-dialog{width:100%;max-width:850px}.policy-content{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;max-height:48dvh;overflow-y:auto;border:1px solid var(--line);border-radius:9px;padding:20px;margin:20px 0;background:#fafcf8}.policy-dialog .check{align-items:flex-start;line-height:1.7}button:disabled{opacity:.5;cursor:not-allowed}
+.topbar{height:auto;min-height:76px;gap:16px;padding-top:12px;padding-bottom:12px;flex-wrap:wrap}.topbar>span{min-width:0;overflow-wrap:anywhere}.topbar .small-links{flex-wrap:wrap}.workspace-name{overflow-wrap:anywhere}
+@media(max-width:760px){.topbar{min-height:58px;gap:10px}.topbar>span{width:100%}.topbar .small-links{width:100%;justify-content:flex-end}}

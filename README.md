@@ -1,13 +1,14 @@
 # TaskSure
 
-A working employee task management app for liquor-store operations. Laravel 13 / PHP 8.4, PostgreSQL, Blade, Tailwind 4, FullCalendar, Dompdf and PhpSpreadsheet. Designed for approximately 50 employees using phones and supervisors using laptops. MySQL remains supported for the existing cloud development fixture.
+An employee task management app for liquor-store operations across authorised store workspaces. Laravel 13 / PHP 8.4, PostgreSQL, Blade, Tailwind 4, FullCalendar, Dompdf and PhpSpreadsheet. Designed for approximately 50 employees using phones and supervisors using laptops. MySQL remains supported for the existing cloud development fixture.
 
 ## What works
 
 - Dedicated [manager and employee mobile frontend](mobile/README.md) in TypeScript/Vite/Tailwind/Capacitor, with locally bundled Android/iOS screens, camera evidence, authenticated Laravel API and queued native push. See [mobile deployment](docs/MOBILE.md) for provider credentials and signing requirements. The Blade manager dashboard remains in place.
 
+- [Multi-store workspaces](docs/MULTI-STORE.md), a web-only Super Admin dashboard, secure owner assignment, company/store settings and authorised web/mobile store switching. Owners remain restricted to their stores; managers and employees retain mobile access.
 - Owner-controlled accounts, inactive accounts with preserved history, scoped managers, scoped task and file access for managers and employees, password reset, CSRF protection and login throttling. No public registration.
-- [Company policies](docs/COMPANY-POLICY.md): owner drafts and immutable published versions, mandatory web/mobile staff acknowledgement enforced by Laravel, version history and a filterable acknowledgement overview. One business per deployment; no company switching.
+- [Company policies](docs/COMPANY-POLICY.md): owner drafts and immutable published versions, mandatory web/mobile staff acknowledgement enforced by Laravel, version history and a filterable acknowledgement overview. Policies remain company-wide across that company’s stores.
 - Assignment, reassignment, scheduled start, priority, deadlines, start work, comments, blockers, evidence upload, immediate completion, optional review, reopening with correction notes, cancellation and activity history.
 - Every completion attempt has its own note, evidence, deadline and timestamps. Optional reviews and reopenings have separate actor/time records. Deadline changes retain old/new values and the actor. “Overdue” is calculated separately from status.
 - Calendar day/week/month with future recurring dates until paused/ended, task search, filters, semantic priority sorting, pagination, mobile dashboards and authenticated image previews/PDF downloads.

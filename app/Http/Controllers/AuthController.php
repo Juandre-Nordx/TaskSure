@@ -18,6 +18,10 @@ class AuthController extends Controller
         if (Auth::attempt($data + ['active' => true], $r->boolean('remember'))) {
             $r->session()->regenerate();
 
+            if ($r->user()->role === 'super_admin') {
+                return redirect('/super-admin');
+            }
+
             return redirect()->intended('/');
         }
 

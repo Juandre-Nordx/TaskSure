@@ -18,7 +18,7 @@ class SendAlertEmail implements ShouldQueue
     public function handle(): void
     {
         $a = Alert::findOrFail($this->alertId);
-        if ($a->emailed_at || ! $a->user->active) {
+        if ($a->emailed_at || ! $a->deliverable()) {
             return;
         }
         try {

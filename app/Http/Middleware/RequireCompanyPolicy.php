@@ -15,8 +15,11 @@ class RequireCompanyPolicy
             return $next($request);
         }
         $user = $request->user();
-        abort_unless($user?->company_id, 403, 'A company account is required.');
-        if (! $request->routeIs('company-policy.*', 'mobile.policy.*', 'mobile.me')) {
+        if ($request->routeIs('stores.*', 'mobile.stores.*', 'mobile.me')) {
+            return $next($request);
+        }
+        abort_unless($user?->workspaceCompanyId(), 403, 'A company account is required.');
+        if (! $request->routeIs('company-policy.*', 'mobile.policy.*')) {
             $policy = app(CompanyPolicyService::class)->requiredFor($user);
             if ($policy) {
                 if ($request->is('api/*', 'calendar/events') || $request->expectsJson()) {

@@ -48,7 +48,7 @@ class TaskController extends Controller
         $f['scope'] ??= $r->user()->isSupervisor() ? 'team' : 'my';
         $tasks = $this->query->build($r->user(), $f)->with(['employee', 'category'])->when(($f['sort'] ?? 'due_at') === 'priority', fn ($q) => $q->orderByRaw("CASE priority WHEN 'urgent' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END ".($f['direction'] ?? 'asc')), fn ($q) => $q->orderBy($f['sort'] ?? 'due_at', $f['direction'] ?? 'asc'))->paginate(15)->withQueryString();
 
-        return view('tasks.index', ['tasks' => $tasks, 'scope' => $f['scope'], 'employees' => $r->user()->visibleEmployees()->when($f['scope'] === 'team', fn ($q) => $q->whereKeyNot($r->user()->id))->orderBy('name')->get(), 'categories' => Category::all()]);
+        return view('tasks.index', ['tasks' => $tasks, 'scope' => $f['scope'], 'employees' => $r->user()->visibleEmployees()->when($f['scope'] === 'team', fn ($q) => $q->whereKeyNot($r->user()->id))->orderBy('name')->get(), 'categories' => Category::forStore($r->user())->get()]);
     }
 
     public function reviews(Request $r)
@@ -67,15 +67,15 @@ class TaskController extends Controller
     {
         abort_unless($r->user()->isSupervisor(), 403);
 
-        return view('tasks.create', ['employees' => $r->user()->visibleEmployees()->where('active', true)->get(), 'categories' => Category::all()]);
+        return view('tasks.create', ['employees' => $r->user()->assignableEmployees()->get(), 'categories' => Category::forStore($r->user())->get()]);
     }
 
     public function store(Request $r, AlertService $alerts)
     {
         abort_unless($r->user()->isSupervisor(), 403);
-        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => 'required|exists:users,id', 'category_id' => 'required|exists:categories,id', 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'required|in:photo,document,note|distinct', 'scheduled_at' => 'nullable|date_format:Y-m-d\TH:i', 'due_at' => 'required|date_format:Y-m-d\TH:i|after_or_equal:scheduled_at', 'recurrence' => 'nullable|in:daily,weekly,monthly', 'recurrence_until' => 'nullable|date_format:Y-m-d|prohibited_unless:recurrence,daily,weekly,monthly']);
+        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => 'required|exists:users,id', 'category_id' => ['required', Rule::exists('category_store', 'category_id')->where('store_id', $r->user()->storeId())], 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'required|in:photo,document,note|distinct', 'scheduled_at' => 'nullable|date_format:Y-m-d\TH:i', 'due_at' => 'required|date_format:Y-m-d\TH:i|after_or_equal:scheduled_at', 'recurrence' => 'nullable|in:daily,weekly,monthly', 'recurrence_until' => 'nullable|date_format:Y-m-d|prohibited_unless:recurrence,daily,weekly,monthly']);
         $e = User::findOrFail($v['employee_id']);
-        abort_unless($e->active && $r->user()->canManageEmployee($e), 403);
+        abort_unless($e->inStore($r->user()->storeId()) && $r->user()->canManageEmployee($e), 403);
         $v['scheduled_at'] = filled($v['scheduled_at'] ?? null) ? BT::utc($v['scheduled_at']) : null;
         $v['due_at'] = BT::utc($v['due_at']);
         $frequency = $v['recurrence'] ?? null;
@@ -109,7 +109,7 @@ class TaskController extends Controller
         Gate::authorize('view', $task);
         $task->load(['employee', 'creator', 'category', 'completer', 'reviewer', 'reviews.reviewer', 'submissions.attachments', 'submissions.reviewer', 'attachments', 'activities.user', 'deadlineChanges.user', 'template.creator', 'template.employee']);
 
-        return view('tasks.show', ['task' => $task, 'employees' => $r->user()->visibleEmployees()->where('active', true)->get()]);
+        return view('tasks.show', ['task' => $task, 'employees' => $r->user()->assignableEmployees()->get()]);
     }
 
     public function action(Task $task, Request $r)
@@ -134,7 +134,7 @@ class TaskController extends Controller
                 break;
             case 'reassign':$v = $r->validate(['employee_id' => 'required|exists:users,id', 'reason' => 'required|string|max:5000']);
                 $e = User::findOrFail($v['employee_id']);
-                abort_unless($e->active && $r->user()->canManageEmployee($e), 403);
+                abort_unless($e->inStore($r->user()->storeId()) && $r->user()->canManageEmployee($e), 403);
                 $this->workflow->reassign($task, $r->user(), $e, $v['reason']);
                 break;
             case 'cancel':$v = $r->validate(['reason' => 'required|string|max:5000']);
@@ -194,7 +194,7 @@ class TaskController extends Controller
 
     public function calendar(Request $r)
     {
-        return view('calendar', ['employees' => $r->user()->visibleEmployees()->get(), 'categories' => Category::all()]);
+        return view('calendar', ['employees' => $r->user()->visibleEmployees()->get(), 'categories' => Category::forStore($r->user())->get()]);
     }
 
     public function events(Request $r, CalendarEvents $calendar)

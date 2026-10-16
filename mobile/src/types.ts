@@ -3,9 +3,13 @@ export type EvidenceKind = 'photo' | 'document' | 'note';
 export type RepeatFrequency = 'daily' | 'weekly' | 'monthly';
 export interface RecurringSchedule { id: number; frequency: RepeatFrequency; active: boolean; next_date: string; ends_on: string | null; due_time: string; state: string }
 export interface User { id: number; name: string; email: string; role: 'employee' | 'manager' }
+export interface Store { id: number; name: string; company_id: number; company_name: string; active: boolean }
 export interface TeamOptions { assignees: Pick<User, 'id' | 'name' | 'role'>[]; categories: { id: number; name: string }[] }
 export interface Profile {
   user: User;
+  store: Store | null;
+  stores: Store[];
+  store_available: boolean;
   policy_required: boolean;
   policy: CompanyPolicy | null;
   config: { timezone: string; upload_max_kb: number; push_enabled: boolean };
