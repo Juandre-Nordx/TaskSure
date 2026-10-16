@@ -14,7 +14,10 @@ export interface Profile {
   policy: CompanyPolicy | null;
   config: { timezone: string; upload_max_kb: number; push_enabled: boolean };
 }
-export interface CompanyPolicy { id: number; version: number; title: string; content: string; published_at: string }
+export interface CompanyPolicy {
+  id: number; version: number; title: string; content: string; published_at: string;
+  document?: { name: string; size: number; mime: 'application/pdf'; url: string } | null;
+}
 export interface PolicyState { policy: CompanyPolicy | null; required: boolean; acknowledged_at: string | null }
 export interface LoginResponse extends Profile { token: string; expires_at: string }
 export interface Page<T> { data: T[]; meta: { page: number; last_page: number; total: number; unread?: number } }

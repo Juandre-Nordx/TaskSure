@@ -10,6 +10,11 @@ class CompanyPolicyAcknowledgement extends Model
 
     protected $guarded = [];
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
     protected function casts(): array
     {
         return ['acknowledged_at' => 'datetime'];

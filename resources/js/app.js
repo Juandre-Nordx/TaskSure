@@ -15,6 +15,15 @@ if(el){
 document.querySelectorAll('[data-upload]').forEach(form=>form.addEventListener('submit',e=>{e.preventDefault();const xhr=new XMLHttpRequest(),progress=form.querySelector('progress'),status=form.querySelector('[data-upload-status]'),button=form.querySelector('button');progress.hidden=false;button.disabled=true;status.textContent='Uploading…';xhr.open('POST',form.action);xhr.setRequestHeader('X-CSRF-TOKEN',csrf);xhr.setRequestHeader('Accept','application/json');if(workspaceStore)xhr.setRequestHeader('X-TaskSure-Store',workspaceStore);xhr.upload.onprogress=e=>{if(e.lengthComputable)progress.value=100*e.loaded/e.total;};xhr.onload=()=>{button.disabled=false;if(xhr.status>=200&&xhr.status<300){status.textContent='Uploaded. Refreshing evidence…';location.reload();}else{try{const data=JSON.parse(xhr.responseText);if(data.code==='POLICY_ACKNOWLEDGEMENT_REQUIRED'){location.assign('/company-policy');return;}status.textContent=responseError(data,'Upload failed.');}catch{status.textContent='Upload failed. Check the file size and try again.';}}};xhr.onerror=()=>{button.disabled=false;status.textContent='Network error. Please try again.';};xhr.send(new FormData(form));}));
 
 const policyForm=document.querySelector('[data-policy-ack]');
+document.querySelectorAll('[data-policy-document]').forEach(section=>{
+ const button=section.querySelector('[data-policy-read]'),viewer=section.querySelector('[data-policy-viewer]'),frame=viewer.querySelector('iframe');
+ button.addEventListener('click',()=>{if(!frame.src)frame.src=frame.dataset.pdfSrc;viewer.hidden=!viewer.hidden;button.setAttribute('aria-expanded',String(!viewer.hidden));button.textContent=viewer.hidden?'Read policy':'Hide PDF';});
+});
+document.querySelectorAll('[data-policy-draft]').forEach(form=>{
+ const format=form.querySelector('[name="format"]');
+ const update=()=>form.querySelectorAll('[data-policy-format]').forEach(section=>{const active=section.dataset.policyFormat===format.value;section.hidden=!active;section.querySelectorAll('input,textarea').forEach(input=>{input.disabled=!active;});});
+ format.addEventListener('change',update);update();
+});
 if(policyForm){const checkbox=policyForm.querySelector('[name="acknowledged"]'),button=policyForm.querySelector('[type="submit"]');const reset=()=>{checkbox.checked=false;button.disabled=true;};reset();window.addEventListener('pageshow',reset);checkbox.addEventListener('change',()=>{button.disabled=!checkbox.checked;});}
 // Revalidate on history restoration: cached content never bypasses the server guard.
 window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});

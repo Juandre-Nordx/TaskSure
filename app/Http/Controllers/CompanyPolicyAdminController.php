@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CompanyPolicyAcknowledgement;
 use App\Models\CompanyPolicyVersion;
 use App\Models\User;
+use App\Rules\PolicyPdf;
 use App\Services\CompanyPolicyService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class CompanyPolicyAdminController extends Controller
 {
@@ -37,8 +40,17 @@ class CompanyPolicyAdminController extends Controller
     public function draft(Request $request, CompanyPolicyService $service)
     {
         $this->owner($request);
-        $data = $request->validate(['title' => 'required|string|max:180', 'content' => 'required|string|max:100000', 'draft_revision' => 'required|integer|min:0', 'company_id' => 'prohibited']);
-        $service->saveDraft($request->user(), $data['title'], $data['content'], (int) $data['draft_revision']);
+        $data = $request->validate([
+            'title' => 'required|string|max:180', 'content' => 'nullable|string|max:100000',
+            'format' => 'nullable|in:pdf,text',
+            'policy_pdf' => ['nullable', 'file', 'mimes:pdf', 'extensions:pdf', 'max:'.config('tasksure.upload_max_kb'), new PolicyPdf],
+            'draft_revision' => 'required|integer|min:0', 'company_id' => 'prohibited',
+        ]);
+        $format = $data['format'] ?? ($request->hasFile('policy_pdf') ? 'pdf' : 'text');
+        if ($format === 'text' && $request->hasFile('policy_pdf')) {
+            throw ValidationException::withMessages(['policy_pdf' => 'Choose PDF upload to use the selected file.']);
+        }
+        $service->saveDraft($request->user(), $data['title'], $data['content'] ?? '', (int) $data['draft_revision'], $request->file('policy_pdf'), $format);
 
         return redirect('/admin/company-policy')->with('success', 'Draft saved. Staff access and notifications are unchanged.');
     }
@@ -56,7 +68,9 @@ class CompanyPolicyAdminController extends Controller
     {
         $this->owner($request);
         $policy = CompanyPolicyVersion::where('company_id', $service->company($request->user())->id)->findOrFail($version);
+        $acknowledgements = CompanyPolicyAcknowledgement::with('user')->where('company_id', $policy->company_id)
+            ->where('policy_version_id', $policy->id)->orderByDesc('acknowledged_at')->paginate(25);
 
-        return response()->view('policies.version', compact('policy'))->header('Cache-Control', 'private, no-store');
+        return response()->view('policies.version', compact('policy', 'acknowledgements'))->header('Cache-Control', 'private, no-store');
     }
 }

@@ -20,7 +20,7 @@ class StoreUpgradeTest extends TestCase
         try {
             $migration = database_path('migrations/2026_10_16_000001_add_store_workspaces.php');
             foreach (glob(database_path('migrations/*.php')) as $path) {
-                if ($path !== $migration) {
+                if ($path < $migration) {
                     (require $path)->up();
                 }
             }

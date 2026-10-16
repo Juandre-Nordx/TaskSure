@@ -38,4 +38,16 @@ describe('mandatory company policy', () => {
     expect(html).not.toContain(' checked');
     expect(html).toContain('Version 3');
   });
+  it('offers PDF reading and download while keeping confirmation unchecked and locked', () => {
+    const html = policyScreen({ ...policy, content: '', document: { name: '<Policy>.pdf', size: 2048, mime: 'application/pdf', url: '/company-policy/versions/3/pdf' } }, true);
+    expect(html).toContain('Read policy');
+    expect(html).toContain('Download PDF');
+    expect(html).toContain('&lt;Policy&gt;.pdf');
+    expect(html).toContain('Version 2');
+    expect(html).toContain('14 Oct 2026, 14:00');
+    expect(html).toContain('id="policy-confirm" type="submit" disabled');
+    expect(html).not.toContain(' checked');
+    expect(html).not.toContain('bottom-nav');
+    expect(html).toContain('Reading or downloading does not record an acknowledgement.');
+  });
 });
