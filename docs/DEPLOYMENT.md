@@ -14,7 +14,7 @@ For assignment-time recurrence and pause/resume, follow the [recurring-task rele
 
 For the multi-store release, follow [MULTI-STORE.md](MULTI-STORE.md) first. Stop old writers during the store-scope/settings copy, preserve the existing database and evidence volume, and release web/worker/scheduler together. Super Admin setup is explicit and web-only.
 
-For multiple independent policies and the staff library, follow [the coordinated policy-library upgrade](COMPANY-POLICY-LIBRARY.md#controlled-railway-release). Stop old writers during the draft/version backfill; Android 1.7 enables the policy list.
+For multiple independent policies and the staff library, follow [the coordinated policy-library upgrade](COMPANY-POLICY-LIBRARY.md#controlled-railway-release). Stop old writers during the draft/version backfill; Android 1.8 enables the policy list and staff access to previous versions. The staff-history follow-up adds no additional migration.
 
 ## Deployment checklist
 

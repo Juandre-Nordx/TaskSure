@@ -342,8 +342,14 @@ async function render() {
     profile = latest; api.setStore(latest.store?.id ?? null);
     if (! latest.store_available) { showStoreChoices(latest); return; }
     const path = location.hash.slice(1) || '/tasks';
-    const policyPath = path.match(/^\/company-policy(?:\/(\d+))?$/);
-    const state = await api.request<PolicyState>('/company-policy' + (policyPath?.[1] ? `?policy_id=${policyPath[1]}` : ''));
+    const policyPath = path.split('?')[0].match(/^\/company-policy(?:\/(\d+))?$/);
+    const policyParams = new URLSearchParams();
+    if (policyPath?.[1]) {
+      policyParams.set('policy_id', policyPath[1]);
+      const search = new URLSearchParams(path.split('?')[1] || '');
+      for (const key of ['version_id', 'history_page']) if (search.has(key)) policyParams.set(key, search.get(key)!);
+    }
+    const state = await api.request<PolicyState>('/company-policy' + (policyParams.size ? `?${policyParams}` : ''));
     if (version !== pageVersion || ! profile) return;
     if (state.required) {
       if (!policyPath && !policyReturnPath) policyReturnPath = path;

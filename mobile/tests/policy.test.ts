@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiClient, ApiError } from '../src/api';
 import { policyLibraryScreen, policyScreen } from '../src/policy';
-import type { CompanyPolicy } from '../src/types';
+import type { CompanyPolicy, PolicyState } from '../src/types';
 
 const policy: CompanyPolicy = { id: 3, version: 2, title: 'Store policy', content: 'First paragraph.\n\nFull policy content.', published_at: '2026-10-14T12:00:00Z' };
 afterEach(() => vi.unstubAllGlobals());
@@ -49,6 +49,54 @@ describe('mandatory company policy', () => {
     expect(html).not.toContain(' checked');
     expect(html).not.toContain('bottom-nav');
     expect(html).toContain('Reading or downloading does not record an acknowledgement.');
+  });
+});
+
+describe('staff policy version history', () => {
+  const current = { ...policy, id: 8, policy_id: 10, title: 'Current policy', version: 3, required: true, acknowledged_at: null };
+  const previous = { ...policy, id: 4, policy_id: 10, title: 'Old <policy>', version: 1 };
+  const state: PolicyState = { policy: previous, current_policy: current, selected_is_current: false, selected_required: false, required: true, outstanding_count: 1, acknowledged_at: '2026-10-15T12:00:00Z', policies: [current], history: { data: [{ ...previous, acknowledged_at: '2026-10-15T12:00:00Z' }], meta: { page: 1, last_page: 2, total: 21 } } };
+
+  it('labels older versions read-only and keeps the current policy lock and return link', () => {
+    const html = policyLibraryScreen(state);
+    expect(html).toContain('Previous version — read only');
+    expect(html).toContain('Read current version (version 3)');
+    expect(html).toContain('href="#/company-policy/10"');
+    expect(html).toContain('1 policy requires your acknowledgement');
+    expect(html).toContain('Previous published versions');
+    expect(html).toContain('Old &lt;policy&gt;');
+    expect(html).not.toContain('Old <policy>');
+    expect(html).toContain('Acknowledged 15 Oct 2026, 14:00');
+    expect(html).not.toContain('id="policy-confirm"');
+    expect(html).not.toContain('id="policy-continue"');
+    expect(html).not.toContain('bottom-nav');
+  });
+
+  it('keeps history selection and parent policy when moving through history pages', () => {
+    const html = policyLibraryScreen(state);
+    expect(html).toContain('Page 1 of 2');
+    expect(html).toContain('href="#/company-policy/10?version_id=4&amp;history_page=2"');
+    expect(html).toContain('>Next</a>');
+    expect(html).not.toContain('>Previous</a>');
+    const last = policyLibraryScreen({ ...state, history: { ...state.history!, meta: { page: 2, last_page: 2, total: 21 } } });
+    expect(last).toContain('>Previous</a>');
+    expect(last).not.toContain('>Next</a>');
+  });
+
+  it('offers private historical PDF actions without any acknowledgement control', () => {
+    const html = policyLibraryScreen({ ...state, policy: { ...previous, content: '', document: { name: 'Old policy.pdf', size: 2048, mime: 'application/pdf', url: '/company-policy/versions/4/pdf' } } });
+    expect(html).toContain('Read policy');
+    expect(html).toContain('Download PDF');
+    expect(html).toContain('Old policy.pdf');
+    expect(html).not.toContain('id="policy-acknowledged"');
+    expect(html).not.toContain('id="policy-confirm"');
+  });
+
+  it('allows returning to work after current policies are acknowledged even when the old version was not', () => {
+    const html = policyLibraryScreen({ ...state, required: false, outstanding_count: 0, acknowledged_at: null, policies: [{ ...current, required: false, acknowledged_at: '2026-10-16T12:00:00Z' }], history: { data: [{ ...previous, acknowledged_at: null }], meta: { page: 1, last_page: 1, total: 1 } } });
+    expect(html).toContain('Not acknowledged for this version');
+    expect(html).toContain('id="policy-continue"');
+    expect(html).not.toContain('id="policy-acknowledged"');
   });
 });
 
