@@ -10,11 +10,11 @@ import { bindPolicyDocuments } from '../src/policy-documents';
 const policy: CompanyPolicy = { id: 12, version: 3, title: 'PDF policy', content: '', published_at: '2026-10-16T12:00:00Z', document: { name: 'Policy.pdf', size: 32, mime: 'application/pdf', url: '/company-policy/versions/12/pdf' } };
 const pdf = new Blob(['%PDF-1.4\n%%EOF'], { type: 'application/pdf' });
 
-function screen(current = () => true) {
+function screen(current = () => true, selected = policy) {
   const status = { textContent: '' };
   const buttons = [{ id: 'policy-read', disabled: false, onclick: undefined as undefined | (() => Promise<void>) }, { id: 'policy-download', disabled: false, onclick: undefined as undefined | (() => Promise<void>) }];
   const root = { querySelector: () => status, querySelectorAll: () => buttons } as unknown as HTMLElement;
-  bindPolicyDocuments(root, policy, current);
+  bindPolicyDocuments(root, selected, current);
   return { read: buttons[0], download: buttons[1], status };
 }
 beforeEach(() => {
@@ -24,6 +24,12 @@ beforeEach(() => {
 });
 
 describe('authenticated policy PDF actions', () => {
+  it('exports distinct filenames for separate policies with the same version number', async () => {
+    await screen(() => true, { ...policy, policy_id: 31, version: 1 }).download.onclick!();
+    await screen(() => true, { ...policy, policy_id: 32, version: 1 }).download.onclick!();
+    expect(mocks.save).toHaveBeenNthCalledWith(1, expect.objectContaining({ name: 'company-policy-31-v1.pdf' }));
+    expect(mocks.save).toHaveBeenNthCalledWith(2, expect.objectContaining({ name: 'company-policy-32-v1.pdf' }));
+  });
   it('fetches privately for each read and uses the existing native viewer', async () => {
     const ui = screen();
     await ui.read.onclick!(); await ui.read.onclick!();

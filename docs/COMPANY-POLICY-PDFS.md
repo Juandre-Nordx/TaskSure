@@ -1,5 +1,7 @@
 # PDF company policies
 
+For the current multiple-policy workflow and coordinated database/Android update, see [Company policy library](COMPANY-POLICY-LIBRARY.md). Existing uploads remain one policy’s version history.
+
 Owners can upload an existing PDF instead of typing a policy. This extends the existing company policy service, permissions, immutable versions and mandatory acknowledgement guard. Written policies remain supported.
 
 ## Workflow

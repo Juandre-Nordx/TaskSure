@@ -242,6 +242,7 @@ class StoreWorkspacesTest extends TestCase
 
     public function test_policy_overview_excludes_inactive_store_memberships_and_assignment_rejects_foreign_categories(): void
     {
+        app(CompanyPolicyService::class)->createDraft($this->owner, 'Store policy draft', 'Not yet published', null, 'text');
         $this->employee->stores()->attach($this->c, ['active' => true]);
         $this->employee->stores()->updateExistingPivot($this->a->id, ['active' => false]);
         $this->web($this->owner, $this->a)->get('/admin/company-policy')->assertOk()->assertSee($this->manager->name)->assertDontSee($this->employee->name);

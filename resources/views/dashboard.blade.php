@@ -22,5 +22,5 @@
 <div class="empty">No upcoming tasks yet.</div>
 @endforelse
 </section><section class="card" style="background:#edf1e6"><p class="eyebrow">LOOK AHEAD</p><h2>Everything has its time.</h2><p class="muted" style="margin:12px 0;line-height:1.8">Plan the day, see the week, and keep deadlines in view.</p><a href="/calendar" class="btn">Open calendar →</a></section></div></div>
-@if(auth()->user()->role==='admin')<section class="card" style="margin-top:24px"><h2>Company policy</h2><p class="field-help">Manage drafts, publish versions and view staff acknowledgements.</p><a class="btn primary" style="margin-top:14px" href="/admin/company-policy">Manage company policy</a></section>@endif
+@if(auth()->user()->role==='admin')<section class="card" style="margin-top:24px"><h2>Company policies</h2><p class="field-help">Add company policies, publish versions and view staff acknowledgements.</p><a class="btn primary" style="margin-top:14px" href="/admin/company-policy">Manage company policies</a></section>@endif
 @endsection

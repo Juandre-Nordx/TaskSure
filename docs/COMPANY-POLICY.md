@@ -1,5 +1,7 @@
 # Company policy and staff acknowledgement
 
+For the current multiple-policy workflow and coordinated database/Android update, see [Company policy library](COMPANY-POLICY-LIBRARY.md). Existing uploads remain one policy’s version history.
+
 For PDF uploads, private viewing/downloads, preserved history and Android version 1.6, see the [PDF policy workflow and release guide](COMPANY-POLICY-PDFS.md).
 
 Policies are **company-wide**. The original policy release linked one existing business; the subsequent [multi-store release](MULTI-STORE.md) adds companies/stores and authorised switching. Stores within one company share policy versions and acknowledgements. Unrelated companies never share them. Follow the multi-store coordinated migration guide when upgrading to the current source.

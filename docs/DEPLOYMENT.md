@@ -14,6 +14,8 @@ For assignment-time recurrence and pause/resume, follow the [recurring-task rele
 
 For the multi-store release, follow [MULTI-STORE.md](MULTI-STORE.md) first. Stop old writers during the store-scope/settings copy, preserve the existing database and evidence volume, and release web/worker/scheduler together. Super Admin setup is explicit and web-only.
 
+For multiple independent policies and the staff library, follow [the coordinated policy-library upgrade](COMPANY-POLICY-LIBRARY.md#controlled-railway-release). Stop old writers during the draft/version backfill; Android 1.7 enables the policy list.
+
 ## Deployment checklist
 
 1. **Open your Railway project and check PostgreSQL.** Use your existing PostgreSQL service in the same project/environment. Create one with **New → Database → PostgreSQL** only if you do not already have one. Back up an existing database before migrations. The examples use the service name `Postgres`; replace that name in variable references if yours differs.

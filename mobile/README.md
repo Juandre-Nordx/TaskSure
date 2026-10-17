@@ -15,7 +15,9 @@ For a local browser preview, leave `VITE_API_URL` unset, run Laravel on port 808
 
 See [mobile setup, API and deployment](../docs/MOBILE.md) for native prerequisites, Firebase/APNs configuration, secure sign-in behavior and device validation. Managers have separate My tasks and Team tasks screens, scoped assignment and optional review/reopening. Owners and Super Admin use the web; Super Admin mobile sign-in is rejected. Business logic and permissions stay in Laravel. See the [release guide](../docs/COMPLETION-REVIEW-RELEASE.md) before upgrading production.
 
-Use **Settings → Store → Switch store** to select an authorised workspace. Task data, evidence/camera recovery and push registration follow the selected store. The [multi-store guide](../docs/MULTI-STORE.md) covers the backend migration and owner provisioning. Policies remain company-wide. The [PDF policy guide](../docs/COMPANY-POLICY-PDFS.md) covers private PDF reading/downloads and the current Android **versionCode 7 / versionName 1.6**.
+Use **Settings → Store → Switch store** to select an authorised workspace. Task data, evidence/camera recovery and push registration follow the selected store. The [multi-store guide](../docs/MULTI-STORE.md) covers the backend migration and owner provisioning. Policies remain company-wide. The [PDF policy guide](../docs/COMPANY-POLICY-PDFS.md) covers private PDF reading/downloads and the PDF release (versionCode 7 / versionName 1.6).
+
+The [company policy library update](../docs/COMPANY-POLICY-LIBRARY.md) adds a list of all current policies, individual reading/downloads and acknowledgements, and requires confirmation of every outstanding policy. Current Android: **versionCode 8 / versionName 1.7**. Rebuild/sync and install a signed update to enable the list; the server still enforces every requirement for older clients.
 
 The supplied TaskSure logo is bundled locally and installed as the Android/iOS app icon. See [logo and app icon updates](../docs/BRANDING.md) for rebuilding and updating an installed app.
 

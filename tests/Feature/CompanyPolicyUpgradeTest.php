@@ -21,7 +21,7 @@ class CompanyPolicyUpgradeTest extends TestCase
         try {
             $policyPath = database_path('migrations/2026_10_14_000002_create_company_policies.php');
             foreach (glob(database_path('migrations/*.php')) as $path) {
-                if ($path !== $policyPath && ! str_contains($path, '2026_10_16_000001') && ! str_contains($path, '2026_10_16_000002')) {
+                if ($path !== $policyPath && ! str_contains($path, '2026_10_16_000001') && ! str_contains($path, '2026_10_16_000002') && ! str_contains($path, '2026_10_17_000001')) {
                     (require $path)->up();
                 }
             }
@@ -62,6 +62,7 @@ class CompanyPolicyUpgradeTest extends TestCase
             // The current application also needs its subsequent store migration.
             (require database_path('migrations/2026_10_16_000001_add_store_workspaces.php'))->up();
             (require database_path('migrations/2026_10_16_000002_add_company_policy_pdfs.php'))->up();
+            (require database_path('migrations/2026_10_17_000001_create_company_policy_library.php'))->up();
             // The same existing owner can use the dashboard after the forward upgrades.
             $this->actingAs(User::findOrFail(1))->get('/')->assertOk();
 

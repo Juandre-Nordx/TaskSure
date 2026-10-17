@@ -25,7 +25,7 @@ export function bindPolicyDocuments(root: HTMLElement, policy: CompanyPolicy, is
         if (! isCurrent()) return;
         if (blob.type !== 'application/pdf') throw new Error('The policy PDF is unavailable. Contact your store owner.');
         const download = button.id === 'policy-download';
-        const name = `company-policy-v${policy.version}.pdf`;
+        const name = `company-policy-${policy.policy_id ? policy.policy_id + '-' : ''}v${policy.version}.pdf`;
         if (Capacitor.isNativePlatform()) {
           if (download && Capacitor.getPlatform() === 'android') {
             const path = await cacheNativeDocument(blob, -policy.id);

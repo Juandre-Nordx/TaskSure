@@ -25,7 +25,7 @@ public class PolicyDocumentsPlugin extends Plugin {
         try {
             source(call);
             String name = call.getString("name", "company-policy.pdf");
-            if (!name.matches("company-policy-v[0-9]+\\.pdf")) name = "company-policy.pdf";
+            if (!name.matches("company-policy-(?:[0-9]+-)?v[0-9]+\\.pdf")) name = "company-policy.pdf";
             Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
             intent.setType("application/pdf");
