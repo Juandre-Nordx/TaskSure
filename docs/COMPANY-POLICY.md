@@ -1,12 +1,14 @@
 # Company policy and staff acknowledgement
 
+For PDF uploads, private viewing/downloads, preserved history and Android version 1.6, see the [PDF policy workflow and release guide](COMPANY-POLICY-PDFS.md).
+
 Policies are **company-wide**. The original policy release linked one existing business; the subsequent [multi-store release](MULTI-STORE.md) adds companies/stores and authorised switching. Stores within one company share policy versions and acknowledgements. Unrelated companies never share them. Follow the multi-store coordinated migration guide when upgrading to the current source.
 
 ## Owner workflow
 
 Open **Overview → Company policy**, or the **Company policy** navigation item. Only the existing `admin`/store-owner role can manage or publish policies.
 
-1. Enter a title and full policy content, then **Save draft**. Content is plain text with paragraphs and line breaks, limited to 100,000 characters; the title allows 180 characters. The saved draft does not notify or block staff.
+1. Enter a title, choose **Upload PDF** and a PDF (default limit 10 MB), then **Save draft**. **Written policy** retains the plain text option, limited to 100,000 characters; the title allows 180 characters. The saved draft does not notify or block staff.
 2. Review the saved draft, then **Publish policy**. Unsaved form edits are not published. Publication assigns the next version, records its publisher and server time, and sends an in-app alert to every active manager and employee in this business through `AlertService`. Existing optional email and native push delivery use their existing queue/configuration. Publication does not prove that an external notification reached a phone.
 3. The owner can read the current policy and previous immutable versions. Editing starts a new draft prefilled from the current version; publishing creates another version. Previous content and acknowledgements remain intact.
 4. The acknowledgement overview lists active staff, role, current version, **Acknowledged / Outstanding**, and acknowledgement time in SAST. Filter by role and acknowledgement status. An acknowledgement records the user's confirmation; it is not proof that the person understood the content. Inactive staff are excluded from this current overview, while their history remains stored.
@@ -17,7 +19,7 @@ Draft revisions prevent one stale owner tab from overwriting or publishing a dif
 
 Managers and employees must acknowledge the current published version, including newly created staff and staff already signed in when publication occurs. Owners remain able to manage policies. When no policy is published, access continues normally.
 
-The web and bundled mobile interface display the full, escaped policy text in a scrollable area, version, publication time, initially unchecked checkbox and disabled **Confirm and continue** button. Reading the policy and signing out remain available. Successful web confirmation returns to the first blocked local GET where practical; mobile resumes its requested screen after checking the latest policy again.
+The web and bundled mobile interface display the title, version and publication time, **Read policy / Download PDF** actions for PDF versions (or full escaped text for written policies), an initially unchecked checkbox and disabled **Confirm and continue** button. Reading/downloading does not acknowledge the policy. Reading and signing out remain available. Successful web confirmation returns to the first blocked local GET where practical; mobile resumes its requested screen after checking the latest policy again.
 
 `RequireCompanyPolicy` guards authenticated web and mobile routes. Protected API/JSON requests return **HTTP 423**:
 

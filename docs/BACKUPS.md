@@ -2,6 +2,8 @@
 
 Back up **both PostgreSQL and evidence**. File metadata, submissions and history are in PostgreSQL; files are on web's private volume. Keep the original production `APP_KEY` securely in your recovery plan. Encrypt backups, restrict access, and keep an off-platform copy with a retention policy.
 
+The upload directory also contains `company-policies/`. Include published PDFs and their database metadata/acknowledgements in the coordinated backup; the whole-directory archive below includes them. Verify an old policy PDF and its acknowledgements during a restore rehearsal.
+
 ## Consistent backup
 
 1. Stop the worker and scheduler. Put web in maintenance mode (`php artisan down --retry=60`) and wait for in-flight requests/jobs to finish. This freezes file/row relationships. Record the release SHA and backup time without logging secrets.

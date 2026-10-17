@@ -5,7 +5,11 @@
 @if($policy)
 <p class="eyebrow" style="margin-top:24px">COMPANY POLICY</p><h1 id="policy-title">{{ $policy->title }}</h1><p class="field-help">Version {{ $policy->version }} · Published {{ \App\Support\BusinessTime::show($policy->published_at) }} · SAST</p>
 @if($required)<p style="margin-top:16px">Read the full policy and acknowledge this version to continue using TaskSure.</p>@endif
+@if($policy->pdf_path)
+@include('policies.pdf', ['pdfName'=>$policy->pdf_name, 'pdfSize'=>$policy->pdf_size, 'pdfTitle'=>$policy->title, 'pdfUrl'=>'/company-policy/versions/'.$policy->id.'/pdf'])
+@else
 <div class="policy-content note" tabindex="0" role="region" aria-label="Full company policy">{{ $policy->content }}</div>
+@endif
 @if($required)<form method="post" action="/company-policy/acknowledge" data-policy-ack>@csrf @include('partials.store-context')<input type="hidden" name="policy_version_id" value="{{ $policy->id }}"><label class="check"><input id="policy-acknowledged" type="checkbox" name="acknowledged" value="1" required>I have read and understand this company policy.</label><button id="policy-confirm" class="btn primary" type="submit" disabled style="margin-top:20px">Confirm and continue</button></form>
 @else<p class="field-help">{{ $record ? 'Acknowledged '.\App\Support\BusinessTime::show($record->acknowledged_at).' · SAST' : 'Owner access — staff acknowledgement is not required for your account.' }}</p><a class="btn primary" href="/" style="margin-top:18px">Continue to TaskSure</a>@endif
 @else<h1 id="policy-title" style="margin-top:24px">Company policy</h1><p style="margin-top:16px">No company policy has been published.</p><a class="btn primary" href="/" style="margin-top:18px">Continue to TaskSure</a>@endif

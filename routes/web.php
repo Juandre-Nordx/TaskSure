@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompanyPolicyAdminController;
 use App\Http\Controllers\CompanyPolicyController;
+use App\Http\Controllers\CompanyPolicyPdfController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SuperAdminController;
@@ -58,8 +59,10 @@ Route::middleware(['auth', ActiveUser::class, ResolveStore::class, RequireCompan
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::get('/company-policy', [CompanyPolicyController::class, 'show'])->name('company-policy.show');
     Route::post('/company-policy/acknowledge', [CompanyPolicyController::class, 'acknowledge'])->name('company-policy.acknowledge');
+    Route::get('/company-policy/versions/{version}/pdf', [CompanyPolicyPdfController::class, 'published'])->whereNumber('version')->name('company-policy.pdf');
     Route::get('/admin/company-policy', [CompanyPolicyAdminController::class, 'index']);
     Route::post('/admin/company-policy/draft', [CompanyPolicyAdminController::class, 'draft']);
+    Route::get('/admin/company-policy/draft/pdf', [CompanyPolicyPdfController::class, 'draft']);
     Route::post('/admin/company-policy/publish', [CompanyPolicyAdminController::class, 'publish']);
     Route::get('/admin/company-policy/versions/{version}', [CompanyPolicyAdminController::class, 'version'])->whereNumber('version');
     Route::get('/', [TaskController::class, 'dashboard'])->name('dashboard');

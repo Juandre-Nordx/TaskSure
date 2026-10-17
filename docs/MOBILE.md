@@ -2,7 +2,7 @@
 
 `mobile/` is a separate TypeScript/Vite/Tailwind CSS 4 app with Capacitor 8 Android and iOS projects. It bundles its HTML, JavaScript, CSS and calendar code into the native app. Capacitor has **no `server.url`**: it never loads the Railway website as its production interface. Laravel remains the backend, with the existing Blade manager/owner dashboard, PostgreSQL, queue and scheduler.
 
-Super Admin is web-only and cannot sign into this API. Managers and employees can switch authorised stores in Settings. Each token binds a selected store; switching clears prior-store state, checks company policy and re-registers push. Follow [the multi-store release guide](MULTI-STORE.md) for migration and the current Android update (**versionCode 6 / versionName 1.5**).
+Super Admin is web-only and cannot sign into this API. Managers and employees can switch authorised stores in Settings. Each token binds a selected store; switching clears prior-store state, checks company policy and re-registers push. Follow [the multi-store release guide](MULTI-STORE.md) for store migration and the [PDF policy release guide](COMPANY-POLICY-PDFS.md) for the current Android update (**versionCode 7 / versionName 1.6**).
 
 ## Build and run
 
@@ -61,6 +61,7 @@ All paths below are relative to `/api/mobile/v1`. All authenticated requests req
 | `GET /me` | Account profile, SAST time zone, upload limit, push availability, `policy_required` and outstanding `policy` (also included in login response) |
 | `POST /logout` | Revoke current phone token and push device |
 | `GET /company-policy` | Current company policy, whether acknowledgement is required, and current acknowledgement time; no-store |
+| `GET /company-policy/versions/{version}/pdf` | Private same-company published PDF, available while acknowledgement is outstanding; `?download=1` for attachment; never acknowledges |
 | `POST /company-policy/acknowledge` | `policy_version_id`, accepted `acknowledged`; authenticated server-owned identity/time; idempotent; stale version returns 423 with latest policy |
 | `GET /tasks` | Personal task summaries only (including for managers); existing filters plus `open=1`, `has_submissions=1`, `page` |
 | `GET /team/tasks` | Manager-only team summaries, excluding personal assignments |

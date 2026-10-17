@@ -11,6 +11,7 @@ import { capturePhoto, photoFile, pendingCameraTask, clearCameraTask, setUpPush,
 import type { MediaResult } from '@capacitor/camera';
 import { clearEvidenceCache, viewNativeDocument } from './evidence';
 import { policyScreen } from './policy';
+import { bindPolicyDocuments, clearPolicyDocuments } from './policy-documents';
 import { escape as e, date, today, label, canWork, missingEvidence } from './utils';
 import type { Profile, LoginResponse, Task, TaskDetails, Page, Alert, Attachment, TeamOptions, CompanyPolicy, PolicyState } from './types';
 
@@ -47,6 +48,7 @@ function toast(text: string) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 6000);
 }
 function releasePage() {
+  clearPolicyDocuments();
   calendar?.destroy(); calendar = undefined;
   objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
 }
@@ -418,6 +420,8 @@ function showPolicy(policy: CompanyPolicy, required: boolean, acknowledgedAt: st
   if (required) pushReady = false;
   // Destroy any open evidence dialogs and normal navigation while locked.
   root.innerHTML = policyScreen(policy, required, acknowledgedAt);
+  const screenVersion = pageVersion;
+  bindPolicyDocuments(root, policy, () => screenVersion === pageVersion && !! profile);
   if ((profile.stores || []).length > 1) { const button = document.createElement('button'); button.className = 'btn full mt-3'; button.textContent = 'Switch store'; button.onclick = () => showStoreChoices(profile!); root.querySelector('.policy-dialog')!.append(button); }
   root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
   root.querySelector<HTMLButtonElement>('#policy-reload')!.onclick = () => void render();
@@ -427,7 +431,7 @@ function showPolicy(policy: CompanyPolicy, required: boolean, acknowledgedAt: st
   checkbox?.addEventListener('change', () => { confirm!.disabled = ! checkbox.checked; });
   root.querySelector<HTMLFormElement>('#policy-ack-form')?.addEventListener('submit', async event => {
     event.preventDefault(); if (! checkbox?.checked) return;
-    confirm!.disabled = true;
+    confirm!.disabled = true; checkbox.disabled = true;
     const version = pageVersion;
     try {
       await api.post('/company-policy/acknowledge', { policy_version_id: policy.id, acknowledged: true });
@@ -437,6 +441,7 @@ function showPolicy(policy: CompanyPolicy, required: boolean, acknowledgedAt: st
     } catch (error) {
       if (version !== pageVersion) return;
       root.querySelector('#policy-error')!.textContent = message(error);
+      checkbox.disabled = false;
       confirm!.disabled = ! checkbox.checked;
     }
   });

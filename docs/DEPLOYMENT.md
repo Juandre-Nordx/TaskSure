@@ -8,6 +8,8 @@ For the completion/optional-review release, follow the [coordinated upgrade proc
 
 For company-policy management and mandatory staff acknowledgement, follow the [policy release checklist](COMPANY-POLICY.md#controlled-railway-release--not-performed-automatically). It adds a forward migration and requires a rebuilt Android app before the first policy is published. This documentation does not authorize an automatic deployment or production migration.
 
+For PDF company policies, follow the [PDF policy release guide](COMPANY-POLICY-PDFS.md#controlled-railway-release). It adds nullable file metadata, reuses web's private `/data/uploads` volume and requires Android version 1.6 or later before PDF publication.
+
 For assignment-time recurrence and pause/resume, follow the [recurring-task release guide](RECURRING-TASKS.md#controlled-railway-release), including the additive migration, Android rebuild and missing-scheduler setup. Future occurrences require `PROCESS_ROLE=scheduler`; a queue worker alone does not generate them.
 
 For the multi-store release, follow [MULTI-STORE.md](MULTI-STORE.md) first. Stop old writers during the store-scope/settings copy, preserve the existing database and evidence volume, and release web/worker/scheduler together. Super Admin setup is explicit and web-only.

@@ -1,5 +1,19 @@
 # Validation record
 
+## PDF company policies — 16 October 2026
+
+- Full Laravel suite: **109 passed / 1,574 assertions on each of SQLite, PostgreSQL 18 and MySQL 8.4**, using disposable test databases. No production database or live customer rows were used; no production resets or seeding occurred.
+- Eight PDF feature/upgrade tests cover private drafts, PDF MIME/extension/header/end-marker/size validation, owner-only writes, authenticated same-company inline/download access, unchanged access/notices while drafting, exact-version acknowledgement, idempotency, new staff, replacement/stale-version handling, title-only draft edits, stale draft protection, missing files, preserved PDFs/history and additive migration preservation of existing rows.
+- Mobile: **24 tests passed**, including PDF screen controls/escaping, initially unchecked confirmation, fresh authenticated document fetching, native viewer handoff, missing-viewer download fallback, Save As cancellation, invalid/offline responses and obsolete-workspace responses. Native handoffs are mocked in these tests.
+- Root Vite production build, mobile TypeScript/Vite production build, Pint (103 PHP files), Blade compilation, route compilation and `git diff --check` passed. `npm run check:railway` evaluated five resources without applying any infrastructure.
+- Capacitor Android sync and native `:app:assembleDebug` passed with JDK 21 / SDK 36 (**229 tasks**, final build 27 seconds). VersionCode **7**, versionName **1.6**, unchanged ID `za.co.tasksure.employee`. Existing FileViewer/Filesystem plugins are reused; the local `PolicyDocuments` plugin supplies Android's system Save As picker. This is a debug compilation, not a signed client release.
+- Chromium against an isolated PostgreSQL browser fixture verified owner PDF upload/draft/preview/publish, manager and employee web confirmation, actual PDF rendering and downloads, blocked access after reading/downloading alone, intended-page return, mobile browser gate/view/download, blocked navigation, publication during confirmation, latest-version reset, normal access afterwards, current filters and old PDF/exact-version acknowledgements. Screenshots and JSON evidence are in `/workspace/artifacts/tasksure-pdf-policy/`. No uncaught page errors or HTTP 500s occurred; HTTP 423 was expected for stale confirmation.
+- The PDF migration adds nullable metadata only. A separate pre-PDF installation fixture verifies unchanged original policy/draft/acknowledgement, user/password, task/submission/evidence, session and token fields. Old written policies continue to work.
+- Restarted the isolated local web container and verified the first published PDF still returned HTTP 200 with its original SHA-256 and acknowledgement history. This uses the local private bind-mounted upload directory; the actual Railway volume remains an external check.
+- Production release/migration, Railway volume persistence/backups, signed APK delivery, actual notifications and physical Android viewer/picker/back/resume/offline checks remain operator/device checks. Follow [the PDF release guide](COMPANY-POLICY-PDFS.md).
+
+## Initial environment validation — 8 October 2026
+
 Checked in the cloud workspace on 8 October 2026.
 
 - Laravel 13.35.0, PHP 8.4.26, PostgreSQL 18 and MySQL 8.4; dependencies installed from frozen Composer/npm lockfiles with TLS/signature verification intact. GitHub archives use official codeload URLs because api.github.com was blocked.

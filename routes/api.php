@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\MobileAuthController;
 use App\Http\Controllers\Api\MobileNotificationController;
 use App\Http\Controllers\Api\MobileTaskController;
 use App\Http\Controllers\CompanyPolicyController;
+use App\Http\Controllers\CompanyPolicyPdfController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskRecurrenceController;
@@ -21,6 +22,7 @@ Route::prefix('mobile/v1')->group(function () {
         Route::post('/logout', [MobileAuthController::class, 'logout'])->name('mobile.logout');
         Route::get('/company-policy', [CompanyPolicyController::class, 'show'])->name('mobile.policy.show');
         Route::post('/company-policy/acknowledge', [CompanyPolicyController::class, 'acknowledge'])->name('mobile.policy.acknowledge');
+        Route::get('/company-policy/versions/{version}/pdf', [CompanyPolicyPdfController::class, 'published'])->whereNumber('version')->name('mobile.policy.pdf');
         Route::get('/tasks', [MobileTaskController::class, 'index']);
         Route::get('/team/tasks', [MobileTaskController::class, 'index'])->defaults('scope', 'team');
         Route::post('/team/tasks', [TaskController::class, 'store']);

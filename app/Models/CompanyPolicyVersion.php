@@ -28,6 +28,14 @@ class CompanyPolicyVersion extends Model
 
     public function toPolicyData(): array
     {
-        return $this->only(['id', 'version', 'title', 'content']) + ['published_at' => $this->published_at->toIso8601String()];
+        return $this->only(['id', 'version', 'title', 'content']) + [
+            'published_at' => $this->published_at->toIso8601String(),
+            'document' => $this->pdf_path ? [
+                'name' => $this->pdf_name,
+                'size' => (int) $this->pdf_size,
+                'mime' => 'application/pdf',
+                'url' => '/company-policy/versions/'.$this->id.'/pdf',
+            ] : null,
+        ];
     }
 }
