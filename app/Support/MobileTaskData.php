@@ -29,6 +29,7 @@ class MobileTaskData
                 'id' => $task->template->id, 'frequency' => $task->template->frequency,
                 'active' => $task->template->active, 'next_date' => $task->template->next_date->toDateString(),
                 'ends_on' => $task->template->ends_on?->toDateString(), 'due_time' => $task->template->due_time,
+                'specific_dates' => $task->template->specific_dates, 'schedule_revision' => $task->template->schedule_revision ?? 0,
                 'state' => $task->template->generationBlock() ?? 'Active',
             ] : null,
         ];

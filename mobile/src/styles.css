@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '../../resources/shared/specific-dates.css';
 @import '../../resources/shared/tokens.css';
 @theme { --font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif; }
 

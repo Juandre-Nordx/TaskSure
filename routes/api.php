@@ -32,6 +32,7 @@ Route::prefix('mobile/v1')->group(function () {
         Route::post('/tasks/{task}/actions', [TaskController::class, 'action']);
         Route::post('/tasks/{task}/recurrence', [TaskRecurrenceController::class, 'make']);
         Route::post('/recurring-tasks/{template}/status', [TaskRecurrenceController::class, 'status']);
+        Route::post('/recurring-tasks/{template}/schedule', [TaskRecurrenceController::class, 'update']);
         Route::post('/tasks/{task}/uploads', [TaskController::class, 'upload'])->middleware('throttle:mobile-uploads');
         Route::get('/attachments/{attachment}', [TaskController::class, 'attachment']);
         Route::get('/calendar', [MobileTaskController::class, 'calendar']);

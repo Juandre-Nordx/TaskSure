@@ -1,7 +1,7 @@
 export type TaskStatus = 'assigned' | 'in_progress' | 'completed' | 'cancelled';
 export type EvidenceKind = 'photo' | 'document' | 'note';
-export type RepeatFrequency = 'daily' | 'weekly' | 'monthly';
-export interface RecurringSchedule { id: number; frequency: RepeatFrequency; active: boolean; next_date: string; ends_on: string | null; due_time: string; state: string }
+export type RepeatFrequency = 'daily' | 'weekly' | 'monthly' | 'specific_dates';
+export interface RecurringSchedule { id: number; frequency: RepeatFrequency; active: boolean; next_date: string; ends_on: string | null; due_time: string; state: string; specific_dates?: string[] | null; schedule_revision?: number }
 export interface User { id: number; name: string; email: string; role: 'employee' | 'manager' }
 export interface Store { id: number; name: string; company_id: number; company_name: string; active: boolean }
 export interface TeamOptions { assignees: Pick<User, 'id' | 'name' | 'role'>[]; categories: { id: number; name: string }[] }

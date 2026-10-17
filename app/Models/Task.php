@@ -30,7 +30,7 @@ class Task extends Model
 
     protected function casts(): array
     {
-        return ['store_id' => 'integer', 'company_id' => 'integer', 'required_evidence' => 'array', 'scheduled_at' => 'datetime', 'due_at' => 'datetime', 'started_at' => 'datetime', 'approved_at' => 'datetime', 'completed_at' => 'datetime', 'reviewed_at' => 'datetime'];
+        return ['store_id' => 'integer', 'company_id' => 'integer', 'required_evidence' => 'array', 'scheduled_at' => 'datetime', 'due_at' => 'datetime', 'started_at' => 'datetime', 'approved_at' => 'datetime', 'completed_at' => 'datetime', 'reviewed_at' => 'datetime', 'schedule_removed' => 'boolean'];
     }
 
     public function employee()

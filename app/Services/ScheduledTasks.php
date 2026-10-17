@@ -21,6 +21,9 @@ class ScheduledTasks
                 if ($p->generationBlock()) {
                     return;
                 }
+                if ($p->frequency === 'specific_dates') {
+                    $p->next_date = $p->specificDateOnOrAfter($p->next_date->toDateString());
+                }
                 $loops = 0;
                 while ($loops++ < 366) {
                     $date = $p->next_date->toDateString();
@@ -28,7 +31,7 @@ class ScheduledTasks
                         $p->update(['active' => false]);
                         break;
                     }
-                    $due = BT::utc($date.' '.$p->due_time);
+                    $due = BT::utc($date.' '.$p->dueTimeOn($date));
                     $start = $p->scheduled_offset_minutes !== null ? $due->subMinutes($p->scheduled_offset_minutes) : null;
                     if ($date > $today && (! $start || $start->isFuture())) {
                         break;
