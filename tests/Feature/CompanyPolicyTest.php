@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\SendAlertPush;
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\CompanyPolicy;
 use App\Models\CompanyPolicyVersion;
 use App\Models\Task;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Services\CompanyPolicyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CompanyPolicyTest extends TestCase
@@ -51,7 +53,7 @@ class CompanyPolicyTest extends TestCase
     {
         $owner ??= $this->owner;
         $service = app(CompanyPolicyService::class);
-        $revision = $service->company($owner)->policy_draft_revision;
+        $revision = ($service->defaultPolicy($owner)?->draft_revision ?? 0);
         $service->saveDraft($owner, $title, "Read the full policy.\n\nHandle stock safely.\nReport incidents.", $revision);
 
         return $service->publish($owner, $revision + 1);
@@ -74,7 +76,7 @@ class CompanyPolicyTest extends TestCase
     {
         config(['mobile.push_enabled' => true]);
         Bus::fake([SendAlertPush::class]);
-        $this->actingAs($this->owner)->get('/admin/company-policy')->assertOk()->assertSee('Company policy');
+        $this->actingAs($this->owner)->get('/admin/company-policy')->assertOk()->assertSee('Company policies');
         $this->post('/admin/company-policy/draft', ['title' => 'Store policy', 'content' => "First paragraph.\nSecond paragraph.", 'draft_revision' => 0])->assertRedirect('/admin/company-policy')->assertSessionHasNoErrors();
         $this->assertDatabaseCount('company_policy_versions', 0);
         $this->assertDatabaseCount('alerts', 0);
@@ -111,13 +113,14 @@ class CompanyPolicyTest extends TestCase
 
     public function test_maximum_length_title_can_be_published_after_many_versions_without_overflowing_notifications(): void
     {
-        CompanyPolicyVersion::create(['company_id' => $this->owner->company_id, 'version' => 99, 'title' => 'Previous policy', 'content' => 'Previous content', 'published_by_id' => $this->owner->id, 'published_at' => now()->subDay()]);
+        $entry = CompanyPolicy::create(['company_id' => $this->owner->company_id]);
+        CompanyPolicyVersion::create(['company_id' => $this->owner->company_id, 'company_policy_id' => $entry->id, 'version' => 99, 'title' => 'Previous policy', 'content' => 'Previous content', 'published_by_id' => $this->owner->id, 'published_at' => now()->subDay()]);
         $title = str_repeat('P', 180);
         $policy = $this->publish(null, $title);
         $this->assertSame(100, $policy->version);
         $this->assertSame($title, $policy->title);
         $this->assertDatabaseCount('alerts', 2);
-        $this->assertDatabaseHas('alerts', ['user_id' => $this->employee->id, 'message' => 'Company policy version 100 is ready. Read and acknowledge it to continue.']);
+        $this->assertDatabaseHas('alerts', ['user_id' => $this->employee->id, 'message' => 'Company policy “'.Str::limit($title, 100).'” version 100 is ready. Read and acknowledge it to continue.']);
     }
 
     public function test_web_requires_acknowledgement_for_manager_and_employee_but_keeps_policy_and_logout_access(): void
@@ -193,7 +196,7 @@ class CompanyPolicyTest extends TestCase
         $this->mobile($this->employee);
         $this->acknowledge($first)->assertOk();
         $service = app(CompanyPolicyService::class);
-        $revision = $service->company($this->owner)->policy_draft_revision;
+        $revision = ($service->defaultPolicy($this->owner)?->draft_revision ?? 0);
         $service->saveDraft($this->owner, 'Revised policy', 'New instructions', $revision);
         $this->getJson(self::API.'/tasks')->assertOk();
         $this->assertSame($first->content, $first->fresh()->content);
@@ -225,7 +228,7 @@ class CompanyPolicyTest extends TestCase
         $first = $this->publish();
         $this->actingAs($this->employee)->get('/company-policy')->assertSee($first->title);
         $second = $this->publish(null, 'Latest web policy');
-        $this->post('/company-policy/acknowledge', ['policy_version_id' => $first->id, 'acknowledged' => 1])->assertRedirect('/company-policy');
+        $this->post('/company-policy/acknowledge', ['policy_version_id' => $first->id, 'acknowledged' => 1])->assertRedirect('/company-policy?policy_id='.$first->company_policy_id);
         $this->get('/company-policy')->assertOk()->assertSee($second->title)->assertSee('type="submit" disabled', false)->assertDontSee(' checked', false);
         $this->assertDatabaseCount('company_policy_acknowledgements', 0);
     }

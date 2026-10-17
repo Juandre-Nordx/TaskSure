@@ -61,6 +61,8 @@ Route::middleware(['auth', ActiveUser::class, ResolveStore::class, RequireCompan
     Route::post('/company-policy/acknowledge', [CompanyPolicyController::class, 'acknowledge'])->name('company-policy.acknowledge');
     Route::get('/company-policy/versions/{version}/pdf', [CompanyPolicyPdfController::class, 'published'])->whereNumber('version')->name('company-policy.pdf');
     Route::get('/admin/company-policy', [CompanyPolicyAdminController::class, 'index']);
+    Route::get('/admin/company-policy/create', [CompanyPolicyAdminController::class, 'create']);
+    Route::post('/admin/company-policy', [CompanyPolicyAdminController::class, 'store']);
     Route::post('/admin/company-policy/draft', [CompanyPolicyAdminController::class, 'draft']);
     Route::get('/admin/company-policy/draft/pdf', [CompanyPolicyPdfController::class, 'draft']);
     Route::post('/admin/company-policy/publish', [CompanyPolicyAdminController::class, 'publish']);

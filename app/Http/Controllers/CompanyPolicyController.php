@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Services\CompanyPolicyService;
 use Illuminate\Http\Request;
 
@@ -10,14 +9,13 @@ class CompanyPolicyController extends Controller
 {
     public function show(Request $request, CompanyPolicyService $service)
     {
-        $policy = $service->current($request->user());
-        $record = $policy ? $service->acknowledgement($request->user(), $policy) : null;
-        $required = $policy && ! $record && in_array($request->user()->role, User::ASSIGNEE_ROLES);
+        $data = $request->validate(['policy_id' => 'nullable|integer|min:1']);
+        $state = $service->state($request->user(), isset($data['policy_id']) ? (int) $data['policy_id'] : null);
         if ($request->is('api/*')) {
-            return response()->json(['policy' => $policy?->toPolicyData(), 'required' => $required, 'acknowledged_at' => $record?->acknowledged_at->toIso8601String()])->header('Cache-Control', 'private, no-store');
+            return response()->json($state)->header('Cache-Control', 'private, no-store');
         }
 
-        return response()->view('policies.acknowledge', compact('policy', 'record', 'required'))->header('Cache-Control', 'private, no-store');
+        return response()->view('policies.acknowledge', ['state' => $state, 'policy' => $state['policy'], 'required' => $state['selected_required']])->header('Cache-Control', 'private, no-store');
     }
 
     public function acknowledge(Request $request, CompanyPolicyService $service)
@@ -28,7 +26,10 @@ class CompanyPolicyController extends Controller
             return response()->json($result, $result['acknowledged'] ? 200 : 423)->header('Cache-Control', 'private, no-store');
         }
         if (! $result['acknowledged']) {
-            return redirect()->route('company-policy.show')->with('policy_changed', $result['message']);
+            return redirect()->route('company-policy.show', ['policy_id' => $result['policy']['policy_id']])->with('policy_changed', $result['message']);
+        }
+        if ($service->requiredFor($request->user())) {
+            return redirect()->route('company-policy.show')->with('success', 'Policy acknowledged. Confirm the remaining policies to continue.');
         }
         $intended = $request->session()->pull('policy.intended', '/');
         $safe = is_string($intended) && str_starts_with($intended, '/') && ! str_starts_with($intended, '//') && ! str_contains($intended, '\\') && ! preg_match('/[\x00-\x1F]/', $intended);

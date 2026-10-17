@@ -45,14 +45,14 @@ class CompanyPolicyPdfTest extends TestCase
 
     private function save(?UploadedFile $pdf = null, string $title = 'Uploaded policy', ?int $revision = null)
     {
-        $revision ??= app(CompanyPolicyService::class)->company($this->owner)->policy_draft_revision;
+        $revision ??= app(CompanyPolicyService::class)->defaultPolicy($this->owner)?->draft_revision ?? 0;
 
         return $this->web($this->owner)->post('/admin/company-policy/draft', ['title' => $title, 'format' => 'pdf', 'policy_pdf' => $pdf, 'draft_revision' => $revision]);
     }
 
     private function publish(): CompanyPolicyVersion
     {
-        $revision = app(CompanyPolicyService::class)->company($this->owner)->policy_draft_revision;
+        $revision = app(CompanyPolicyService::class)->defaultPolicy($this->owner)?->draft_revision ?? 0;
         $this->web($this->owner)->post('/admin/company-policy/publish', ['draft_revision' => $revision])->assertRedirect('/admin/company-policy')->assertSessionHasNoErrors();
 
         return CompanyPolicyVersion::latest('id')->firstOrFail();
@@ -77,21 +77,21 @@ class CompanyPolicyPdfTest extends TestCase
     public function test_pdf_draft_is_private_and_does_not_notify_or_block_staff_until_published(): void
     {
         $this->save($this->pdf())->assertRedirect('/admin/company-policy')->assertSessionHasNoErrors();
-        $company = app(CompanyPolicyService::class)->company($this->owner);
-        Storage::disk('evidence')->assertExists($company->policy_draft_pdf_path);
-        $this->assertStringStartsWith('company-policies/'.$company->id.'/', $company->policy_draft_pdf_path);
-        $this->assertSame(hash_file('sha256', base_path('tests/Fixtures/company-policy.pdf')), $company->policy_draft_pdf_sha256);
-        $this->assertSame('', $company->policy_draft_content);
+        $company = app(CompanyPolicyService::class)->defaultPolicy($this->owner);
+        Storage::disk('evidence')->assertExists($company->draft_pdf_path);
+        $this->assertStringStartsWith('company-policies/'.$company->company_id.'/', $company->draft_pdf_path);
+        $this->assertSame(hash_file('sha256', base_path('tests/Fixtures/company-policy.pdf')), $company->draft_pdf_sha256);
+        $this->assertSame('', $company->draft_content);
         $this->assertDatabaseCount('alerts', 0);
         $this->web($this->employee)->get('/tasks')->assertOk();
         $this->get('/admin/company-policy/draft/pdf')->assertForbidden();
         $this->web($this->owner)->get('/admin/company-policy/draft/pdf')->assertOk()->assertHeader('Content-Type', 'application/pdf')->assertHeader('Cache-Control', 'no-store, private');
         $this->get('/admin/company-policy')->assertOk()->assertSee('Upload PDF')->assertSee('company-policy.pdf')->assertSee('Publish policy');
         $policy = $this->publish();
-        $this->assertSame($company->policy_draft_pdf_path, $policy->pdf_path);
-        $this->assertSame($company->policy_draft_pdf_sha256, $policy->pdf_sha256);
+        $this->assertSame($company->draft_pdf_path, $policy->pdf_path);
+        $this->assertSame($company->draft_pdf_sha256, $policy->pdf_sha256);
         $this->assertDatabaseCount('alerts', 2);
-        $this->assertNull($company->fresh()->policy_draft_pdf_path);
+        $this->assertNull($company->fresh()->draft_pdf_path);
     }
 
     public function test_staff_can_read_and_download_while_locked_without_recording_confirmation(): void
@@ -105,7 +105,7 @@ class CompanyPolicyPdfTest extends TestCase
             $inline = $this->get($path)->assertOk()->assertHeader('Content-Type', 'application/pdf')->assertHeader('X-Content-Type-Options', 'nosniff');
             $this->assertStringStartsWith('inline;', $inline->headers->get('Content-Disposition'));
             $this->assertSame(file_get_contents(base_path('tests/Fixtures/company-policy.pdf')), $inline->streamedContent());
-            $download = $this->get($path.'?download=1')->assertOk()->assertDownload('company-policy-v1.pdf')->assertHeader('Cache-Control', 'no-store, private');
+            $download = $this->get($path.'?download=1')->assertOk()->assertDownload('company-policy-'.$policy->company_policy_id.'-v1.pdf')->assertHeader('Cache-Control', 'no-store, private');
             $this->assertSame($inline->streamedContent(), $download->streamedContent());
             $this->assertDatabaseCount('company_policy_acknowledgements', 0);
             $this->get('/tasks')->assertRedirect('/company-policy');
@@ -135,7 +135,7 @@ class CompanyPolicyPdfTest extends TestCase
             $this->assertCount(0, Storage::disk('evidence')->allFiles());
         }
         $this->save()->assertSessionHasErrors('policy_pdf');
-        $this->assertSame(0, app(CompanyPolicyService::class)->company($this->owner)->policy_draft_revision);
+        $this->assertSame(0, app(CompanyPolicyService::class)->defaultPolicy($this->owner)?->draft_revision ?? 0);
         $this->assertDatabaseCount('company_policy_versions', 0);
     }
 
@@ -177,8 +177,8 @@ class CompanyPolicyPdfTest extends TestCase
         $this->web($this->employee)->post('/company-policy/acknowledge', ['policy_version_id' => $first->id, 'acknowledged' => 1])->assertRedirect();
         $this->get('/tasks')->assertOk();
         $this->save($this->pdf("\n% revision two\n"), 'Replacement policy')->assertSessionHasNoErrors();
-        $draft = app(CompanyPolicyService::class)->company($this->owner);
-        $this->assertNotSame($first->pdf_path, $draft->policy_draft_pdf_path);
+        $draft = app(CompanyPolicyService::class)->defaultPolicy($this->owner);
+        $this->assertNotSame($first->pdf_path, $draft->draft_pdf_path);
         $this->assertSame($first->id, $draft->current_policy_version_id);
         $this->web($this->employee)->get('/tasks')->assertOk();
         $this->assertDatabaseCount('alerts', 2);
@@ -212,11 +212,11 @@ class CompanyPolicyPdfTest extends TestCase
         $this->save($this->pdf());
         $policy = $this->publish();
         $this->save(null, 'New title using existing PDF')->assertSessionHasNoErrors();
-        $company = app(CompanyPolicyService::class)->company($this->owner);
-        $this->assertSame($policy->pdf_path, $company->policy_draft_pdf_path);
+        $company = app(CompanyPolicyService::class)->defaultPolicy($this->owner);
+        $this->assertSame($policy->pdf_path, $company->draft_pdf_path);
         $this->save($this->pdf("\n% stale overwrite\n"), 'Stale draft', 0)->assertSessionHasErrors('draft_revision');
         $this->assertCount(1, Storage::disk('evidence')->allFiles());
-        $this->assertSame('New title using existing PDF', $company->fresh()->policy_draft_title);
+        $this->assertSame('New title using existing PDF', $company->fresh()->draft_title);
         $this->save(null, 'Updated saved title')->assertSessionHasNoErrors();
         $new = $this->publish();
         $this->assertSame($policy->pdf_path, $new->pdf_path);
@@ -227,8 +227,8 @@ class CompanyPolicyPdfTest extends TestCase
     public function test_a_missing_draft_pdf_cannot_be_published_or_used_as_a_new_draft(): void
     {
         $this->save($this->pdf());
-        $company = app(CompanyPolicyService::class)->company($this->owner);
-        Storage::disk('evidence')->delete($company->policy_draft_pdf_path);
+        $company = app(CompanyPolicyService::class)->defaultPolicy($this->owner);
+        Storage::disk('evidence')->delete($company->draft_pdf_path);
         $this->post('/admin/company-policy/publish', ['draft_revision' => 1])->assertSessionHasErrors('policy_pdf');
         $this->save()->assertSessionHasErrors('policy_pdf');
         $this->assertDatabaseCount('company_policy_versions', 0);

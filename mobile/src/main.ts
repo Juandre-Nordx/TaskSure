@@ -10,10 +10,10 @@ import { restoreSession, saveSession, clearSession } from './session';
 import { capturePhoto, photoFile, pendingCameraTask, clearCameraTask, setUpPush, enablePush, disablePush, pushEnabled, stopPush } from './native';
 import type { MediaResult } from '@capacitor/camera';
 import { clearEvidenceCache, viewNativeDocument } from './evidence';
-import { policyScreen } from './policy';
+import { policyLibraryScreen } from './policy';
 import { bindPolicyDocuments, clearPolicyDocuments } from './policy-documents';
 import { escape as e, date, today, label, canWork, missingEvidence } from './utils';
-import type { Profile, LoginResponse, Task, TaskDetails, Page, Alert, Attachment, TeamOptions, CompanyPolicy, PolicyState } from './types';
+import type { Profile, LoginResponse, Task, TaskDetails, Page, Alert, Attachment, TeamOptions, PolicyState } from './types';
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
 let profile: Profile | null = null;
@@ -28,6 +28,7 @@ let loggingOut = false;
 let teamFilters = new URLSearchParams();
 let reviewFilters = new URLSearchParams();
 let policyLocked = false;
+let policyReturnPath: string | null = null;
 let pushReady = false;
 let restoredPhoto: { taskId: number; userId: number; storeId: number | null; data: MediaResult } | null = null;
 let retainedPhoto: { taskId: number; file: File } | null = null;
@@ -111,11 +112,11 @@ async function signOut() {
 }
 
 async function localSignOut() {
-  profile = null; api.setStore(null); policyLocked = false; pushReady = false; notes.clear(); teamFilters = new URLSearchParams(); reviewFilters = new URLSearchParams(); retainedPhoto = null; restoredPhoto = null; releasePage();
+  profile = null; api.setStore(null); policyReturnPath = null; policyLocked = false; pushReady = false; notes.clear(); teamFilters = new URLSearchParams(); reviewFilters = new URLSearchParams(); retainedPhoto = null; restoredPhoto = null; releasePage();
   await stopPush(); await clearEvidenceCache(); await clearCameraTask(); await clearSession(); login();
 }
 api.onUnauthorized = () => { if (profile) { void localSignOut(); toast('Your sign-in expired. Please sign in again.'); } };
-api.onPolicyRequired = policy => { if (profile) showPolicy(policy, true); };
+api.onPolicyRequired = () => { if (profile) { policyLocked = true; void render(); } };
 
 function storeChoices(data: Profile): string {
   return `<form id="store-choice" class="field"><label for="chosen-store">Store</label><select id="chosen-store" name="store_id" required>${(data.stores || []).map(store => `<option value="${store.id}" ${store.id === data.store?.id ? 'selected' : ''}>${e(store.company_name)} · ${e(store.name)}${store.active ? '' : ' · Inactive'}</option>`).join('')}</select><p id="store-error" class="error" role="alert"></p><button class="btn primary mt-3" ${data.stores?.length ? '' : 'disabled'}>Switch store</button></form>`;
@@ -131,6 +132,7 @@ function showStoreChoices(data: Profile, error = '') {
   bindStoreChoices(root); root.querySelector<HTMLButtonElement>('#store-logout')!.onclick = () => void signOut();
 }
 async function clearWorkspaceData() {
+  policyReturnPath = null;
   releasePage(); notes.clear(); retainedPhoto = null; restoredPhoto = null; teamFilters = new URLSearchParams(); reviewFilters = new URLSearchParams(); taskFilter = 'open'; taskSearch = ''; pushReady = false;
   await Promise.all([stopPush(), clearEvidenceCache(), clearCameraTask()]);
 }
@@ -315,7 +317,7 @@ async function notifications(content: HTMLElement, version: number, page = 1) {
 
 async function settings(content: HTMLElement, version: number) {
   const enabled = await pushEnabled(); if (version !== pageVersion) return;
-  content.innerHTML = pagehead('Settings', 'Your account and phone preferences.') + `<div class="stack"><section class="card"><p class="eyebrow">YOUR ACCOUNT</p><h2>${e(profile!.user.name)}</h2><p class="muted mt-2">${e(profile!.user.email)}</p><p class="field-help">${e(label(profile!.user.role))} · Account details are managed by your store owner.</p></section><section class="card"><h2>Your store</h2><p class="muted mt-2">${e(profile!.store?.company_name)} · ${e(profile!.store?.name)}</p>${storeChoices(profile!)}</section><section class="card"><h2>Notifications</h2><p class="muted mt-2">In-app updates are always available. Enable push to receive task updates on this phone.</p><p class="field-help">Phone notifications: ${enabled ? 'Enabled' : 'Disabled'}</p>${! profile!.config.push_enabled ? '<p class="notice">Your store has not enabled native push delivery yet. Updates remain available in the app.</p>' : ''}<button class="btn mt-4" id="push" ${! profile!.config.push_enabled || ! Capacitor.isNativePlatform() ? 'disabled' : ''}>${enabled ? 'Disable' : 'Enable'} push notifications</button>${! Capacitor.isNativePlatform() ? '<p class="field-help">Install the Android or iOS app to use push notifications.</p>' : ''}</section><section class="card"><h2>Company policy</h2><p class="field-help">Read the current published policy and your acknowledgement.</p><a class="btn mt-4" href="#/company-policy">Read company policy</a></section><section class="card"><h2>Time & evidence</h2><p class="field-help">All deadlines display in South African time (${e(profile!.config.timezone)}).</p><p class="field-help">Photos and PDFs: up to ${(profile!.config.upload_max_kb / 1024).toFixed(1)} MB each. Uploads require an internet connection.</p></section><section class="card"><h2>Sign out</h2><p class="muted mt-2">Ends this phone’s sign-in and removes its push subscription. An internet connection is required.</p><button class="btn danger full mt-4" id="logout">Sign out</button></section></div>`;
+  content.innerHTML = pagehead('Settings', 'Your account and phone preferences.') + `<div class="stack"><section class="card"><p class="eyebrow">YOUR ACCOUNT</p><h2>${e(profile!.user.name)}</h2><p class="muted mt-2">${e(profile!.user.email)}</p><p class="field-help">${e(label(profile!.user.role))} · Account details are managed by your store owner.</p></section><section class="card"><h2>Your store</h2><p class="muted mt-2">${e(profile!.store?.company_name)} · ${e(profile!.store?.name)}</p>${storeChoices(profile!)}</section><section class="card"><h2>Notifications</h2><p class="muted mt-2">In-app updates are always available. Enable push to receive task updates on this phone.</p><p class="field-help">Phone notifications: ${enabled ? 'Enabled' : 'Disabled'}</p>${! profile!.config.push_enabled ? '<p class="notice">Your store has not enabled native push delivery yet. Updates remain available in the app.</p>' : ''}<button class="btn mt-4" id="push" ${! profile!.config.push_enabled || ! Capacitor.isNativePlatform() ? 'disabled' : ''}>${enabled ? 'Disable' : 'Enable'} push notifications</button>${! Capacitor.isNativePlatform() ? '<p class="field-help">Install the Android or iOS app to use push notifications.</p>' : ''}</section><section class="card"><h2>Company policies</h2><p class="field-help">Read all published company policies and your acknowledgements.</p><a class="btn mt-4" href="#/company-policy">Read company policies</a></section><section class="card"><h2>Time & evidence</h2><p class="field-help">All deadlines display in South African time (${e(profile!.config.timezone)}).</p><p class="field-help">Photos and PDFs: up to ${(profile!.config.upload_max_kb / 1024).toFixed(1)} MB each. Uploads require an internet connection.</p></section><section class="card"><h2>Sign out</h2><p class="muted mt-2">Ends this phone’s sign-in and removes its push subscription. An internet connection is required.</p><button class="btn danger full mt-4" id="logout">Sign out</button></section></div>`;
   bindStoreChoices(content);
   content.querySelector<HTMLButtonElement>('#push')!.onclick = async event => {
     const button = event.currentTarget as HTMLButtonElement; button.disabled = true;
@@ -339,19 +341,20 @@ async function render() {
     if (version !== pageVersion) return;
     profile = latest; api.setStore(latest.store?.id ?? null);
     if (! latest.store_available) { showStoreChoices(latest); return; }
-    const state = await api.request<PolicyState>('/company-policy');
+    const path = location.hash.slice(1) || '/tasks';
+    const policyPath = path.match(/^\/company-policy(?:\/(\d+))?$/);
+    const state = await api.request<PolicyState>('/company-policy' + (policyPath?.[1] ? `?policy_id=${policyPath[1]}` : ''));
     if (version !== pageVersion || ! profile) return;
-    if (state.required && state.policy) { showPolicy(state.policy, true); return; }
-    policyLocked = false;
-    if (location.hash === '#/company-policy') {
-      if (state.policy) showPolicy(state.policy, false, state.acknowledged_at);
-      else {
-        root.innerHTML = '<main class="policy-gate"><section class="card policy-dialog"><h1>Company policy</h1><p class="muted mt-4">No company policy has been published.</p><button class="btn primary full mt-4" id="policy-continue">Continue to TaskSure</button><button class="btn full mt-3" id="policy-logout">Sign out</button></section></main>';
-        root.querySelector<HTMLButtonElement>('#policy-continue')!.onclick = () => navigate('/tasks');
-        root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
-      }
-      return;
+    if (state.required) {
+      if (!policyPath && !policyReturnPath) policyReturnPath = path;
+      showPolicies(state); return;
     }
+    policyLocked = false;
+    if (policyReturnPath) {
+      const intended = policyReturnPath; policyReturnPath = null;
+      if (path !== intended) { navigate(intended); return; }
+    }
+    if (policyPath) { showPolicies(state); return; }
     if (! pushReady) { await initializePush(); if (version !== pageVersion) return; pushReady = true; }
     if (version !== pageVersion) return;
   } catch (error) {
@@ -414,14 +417,15 @@ async function recoverCamera() {
 }
 void boot();
 
-function showPolicy(policy: CompanyPolicy, required: boolean, acknowledgedAt: string | null = null) {
+function showPolicies(state: PolicyState) {
   if (! profile) return;
+  const { policy, required } = state;
   releasePage(); pageVersion++; policyLocked = required;
   if (required) pushReady = false;
   // Destroy any open evidence dialogs and normal navigation while locked.
-  root.innerHTML = policyScreen(policy, required, acknowledgedAt);
+  root.innerHTML = policyLibraryScreen(state);
   const screenVersion = pageVersion;
-  bindPolicyDocuments(root, policy, () => screenVersion === pageVersion && !! profile);
+  if (policy) bindPolicyDocuments(root, policy, () => screenVersion === pageVersion && !! profile);
   if ((profile.stores || []).length > 1) { const button = document.createElement('button'); button.className = 'btn full mt-3'; button.textContent = 'Switch store'; button.onclick = () => showStoreChoices(profile!); root.querySelector('.policy-dialog')!.append(button); }
   root.querySelector<HTMLButtonElement>('#policy-logout')!.onclick = () => void signOut();
   root.querySelector<HTMLButtonElement>('#policy-reload')!.onclick = () => void render();
@@ -430,14 +434,15 @@ function showPolicy(policy: CompanyPolicy, required: boolean, acknowledgedAt: st
   const confirm = root.querySelector<HTMLButtonElement>('#policy-confirm');
   checkbox?.addEventListener('change', () => { confirm!.disabled = ! checkbox.checked; });
   root.querySelector<HTMLFormElement>('#policy-ack-form')?.addEventListener('submit', async event => {
-    event.preventDefault(); if (! checkbox?.checked) return;
+    event.preventDefault(); if (! checkbox?.checked || !policy) return;
     confirm!.disabled = true; checkbox.disabled = true;
     const version = pageVersion;
     try {
       await api.post('/company-policy/acknowledge', { policy_version_id: policy.id, acknowledged: true });
       if (version !== pageVersion || ! profile) return;
       // Recheck the current version before restoring the intended screen.
-      await render();
+      if (location.hash.startsWith('#/company-policy/')) navigate('/company-policy');
+      else await render();
     } catch (error) {
       if (version !== pageVersion) return;
       root.querySelector('#policy-error')!.textContent = message(error);

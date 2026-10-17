@@ -1,7 +1,7 @@
 @extends('layout')
 @section('title','Published company policy')
 @section('content')
-<div class="pagehead"><div><p class="eyebrow">IMMUTABLE PUBLISHED VERSION {{ $policy->version }}</p><h1>{{ $policy->title }}</h1><p class="field-help">Published {{ \App\Support\BusinessTime::show($policy->published_at) }} · SAST · {{ $policy->publisher->name }}</p></div><a class="btn" href="/admin/company-policy">Company policy</a></div>
+<div class="pagehead"><div><p class="eyebrow">IMMUTABLE PUBLISHED VERSION {{ $policy->version }}</p><h1>{{ $policy->title }}</h1><p class="field-help">Published {{ \App\Support\BusinessTime::show($policy->published_at) }} · SAST · {{ $policy->publisher->name }}</p></div><a class="btn" href="/admin/company-policy?policy_id={{ $policy->company_policy_id }}">Company policies</a></div>
 <section class="card">
 @if($policy->pdf_path)
 @include('policies.pdf', ['pdfName'=>$policy->pdf_name, 'pdfSize'=>$policy->pdf_size, 'pdfTitle'=>$policy->title, 'pdfUrl'=>'/company-policy/versions/'.$policy->id.'/pdf'])

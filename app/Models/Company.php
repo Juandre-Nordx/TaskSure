@@ -37,4 +37,9 @@ class Company extends Model
     {
         return $this->hasMany(CompanyPolicyVersion::class)->orderByDesc('version');
     }
+
+    public function policies()
+    {
+        return $this->hasMany(CompanyPolicy::class);
+    }
 }

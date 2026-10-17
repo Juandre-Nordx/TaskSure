@@ -26,9 +26,20 @@ class CompanyPolicyVersion extends Model
         return $this->belongsTo(User::class, 'published_by_id');
     }
 
+    public function policy()
+    {
+        return $this->belongsTo(CompanyPolicy::class, 'company_policy_id');
+    }
+
+    public function acknowledgements()
+    {
+        return $this->hasMany(CompanyPolicyAcknowledgement::class, 'policy_version_id');
+    }
+
     public function toPolicyData(): array
     {
         return $this->only(['id', 'version', 'title', 'content']) + [
+            'policy_id' => (int) $this->company_policy_id,
             'published_at' => $this->published_at->toIso8601String(),
             'document' => $this->pdf_path ? [
                 'name' => $this->pdf_name,

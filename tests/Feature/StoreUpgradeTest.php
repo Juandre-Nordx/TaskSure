@@ -67,6 +67,8 @@ class StoreUpgradeTest extends TestCase
                 $this->assertSame($store->id, DB::table($table)->where('id', 1)->value('store_id'));
             }
             $this->assertSame(0, DB::table('users')->where('role', 'super_admin')->count());
+            (require database_path('migrations/2026_10_16_000002_add_company_policy_pdfs.php'))->up();
+            (require database_path('migrations/2026_10_17_000001_create_company_policy_library.php'))->up();
             $this->actingAs(User::findOrFail(1))->get('/')->assertOk();
             $this->app['auth']->forgetGuards();
             $this->withHeader('Authorization', 'Bearer 1|original-phone-token')->getJson('/api/mobile/v1/tasks')->assertOk()->assertJsonPath('data.0.title', 'Original completed task');
