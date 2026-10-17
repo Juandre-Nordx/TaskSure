@@ -20,9 +20,11 @@ export interface CompanyPolicy {
   document?: { name: string; size: number; mime: 'application/pdf'; url: string } | null;
 }
 export interface PolicyListItem extends CompanyPolicy { required: boolean; acknowledged_at: string | null }
+export interface PolicyHistoryItem extends Pick<CompanyPolicy, 'id' | 'policy_id' | 'version' | 'title' | 'published_at'> { acknowledged_at: string | null }
 export interface PolicyState {
   policy: CompanyPolicy | null; required: boolean; acknowledged_at: string | null;
   policies?: PolicyListItem[]; outstanding_count?: number; selected_required?: boolean;
+  current_policy?: CompanyPolicy | null; selected_is_current?: boolean; history?: Page<PolicyHistoryItem>;
 }
 export interface LoginResponse extends Profile { token: string; expires_at: string }
 export interface Page<T> { data: T[]; meta: { page: number; last_page: number; total: number; unread?: number } }

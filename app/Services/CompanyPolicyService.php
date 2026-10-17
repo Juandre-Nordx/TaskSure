@@ -54,7 +54,7 @@ class CompanyPolicyService
         return $this->currentVersions($user)->whereDoesntHave('acknowledgements', fn ($query) => $query->where('company_id', $user->workspaceCompanyId())->where('user_id', $user->id))->first();
     }
 
-    public function state(User $user, ?int $selectedPolicyId = null): array
+    public function state(User $user, ?int $selectedPolicyId = null, ?int $selectedVersionId = null, int $historyPage = 1): array
     {
         $versions = $this->currentVersions($user)->get();
         $records = CompanyPolicyAcknowledgement::where('company_id', $user->workspaceCompanyId())->where('user_id', $user->id)
@@ -67,11 +67,29 @@ class CompanyPolicyService
         $outstanding = $policies->where('required', true)->count();
         $selected = $selectedPolicyId === null ? ($policies->firstWhere('required', true) ?? $policies->first()) : $policies->firstWhere('policy_id', $selectedPolicyId);
         abort_if($selectedPolicyId !== null && ! $selected, 404);
+        $current = $selected;
+        $history = ['data' => [], 'meta' => ['page' => 1, 'last_page' => 1, 'total' => 0]];
+        if ($current) {
+            $query = CompanyPolicyVersion::where('company_id', $user->workspaceCompanyId())->where('company_policy_id', $current['policy_id']);
+            if ($selectedVersionId !== null) {
+                $version = (clone $query)->where('version', '<=', $current['version'])->findOrFail($selectedVersionId);
+                $record = $this->acknowledgement($user, $version);
+                $selected = $version->toPolicyData() + ['required' => $version->id === $current['id'] && $current['required'], 'acknowledged_at' => $record?->acknowledged_at->toIso8601String()];
+            }
+            $previous = $query->where('version', '<', $current['version'])->orderByDesc('version')->paginate(20, ['id', 'company_policy_id', 'version', 'title', 'published_at'], 'history_page', $historyPage);
+            $previousRecords = CompanyPolicyAcknowledgement::where('company_id', $user->workspaceCompanyId())->where('user_id', $user->id)
+                ->whereIn('policy_version_id', $previous->modelKeys())->get()->keyBy('policy_version_id');
+            $history = ['data' => $previous->getCollection()->map(fn ($version) => $version->only(['id', 'version', 'title']) + [
+                'policy_id' => (int) $version->company_policy_id, 'published_at' => $version->published_at->toIso8601String(),
+                'acknowledged_at' => $previousRecords->get($version->id)?->acknowledged_at->toIso8601String(),
+            ])->all(), 'meta' => ['page' => $previous->currentPage(), 'last_page' => $previous->lastPage(), 'total' => $previous->total()]];
+        }
 
         // Keep the single-policy fields for existing installed clients. Their
         // next refresh advances to the next outstanding policy, never past it.
         return ['policies' => $policies->values()->all(), 'required' => $outstanding > 0, 'outstanding_count' => $outstanding,
-            'policy' => $selected, 'selected_required' => $selected['required'] ?? false, 'acknowledged_at' => $selected['acknowledged_at'] ?? null];
+            'policy' => $selected, 'selected_required' => $selected['required'] ?? false, 'acknowledged_at' => $selected['acknowledged_at'] ?? null,
+            'current_policy' => $current, 'selected_is_current' => $selected && $selected['id'] === $current['id'], 'history' => $history];
     }
 
     private function entry(Company $company, ?int $policyId, bool $create = false): CompanyPolicy

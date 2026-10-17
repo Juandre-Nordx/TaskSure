@@ -17,7 +17,7 @@ See [mobile setup, API and deployment](../docs/MOBILE.md) for native prerequisit
 
 Use **Settings → Store → Switch store** to select an authorised workspace. Task data, evidence/camera recovery and push registration follow the selected store. The [multi-store guide](../docs/MULTI-STORE.md) covers the backend migration and owner provisioning. Policies remain company-wide. The [PDF policy guide](../docs/COMPANY-POLICY-PDFS.md) covers private PDF reading/downloads and the PDF release (versionCode 7 / versionName 1.6).
 
-The [company policy library update](../docs/COMPANY-POLICY-LIBRARY.md) adds a list of all current policies, individual reading/downloads and acknowledgements, and requires confirmation of every outstanding policy. Current Android: **versionCode 8 / versionName 1.7**. Rebuild/sync and install a signed update to enable the list; the server still enforces every requirement for older clients.
+The [company policy library update](../docs/COMPANY-POLICY-LIBRARY.md) adds a list of all current policies, individual reading/downloads and acknowledgements, and requires confirmation of every outstanding policy. Current Android: **versionCode 9 / versionName 1.8**. Managers and employees can also open **Previous published versions** for original content/PDFs and their own acknowledgement dates. Older versions are read-only; every outstanding current version still requires confirmation. Rebuild/sync and install a signed update to enable the list and history; the server still enforces every requirement for older clients.
 
 The supplied TaskSure logo is bundled locally and installed as the Android/iOS app icon. See [logo and app icon updates](../docs/BRANDING.md) for rebuilding and updating an installed app.
 

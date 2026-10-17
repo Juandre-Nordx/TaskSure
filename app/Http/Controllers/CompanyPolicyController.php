@@ -9,8 +9,8 @@ class CompanyPolicyController extends Controller
 {
     public function show(Request $request, CompanyPolicyService $service)
     {
-        $data = $request->validate(['policy_id' => 'nullable|integer|min:1']);
-        $state = $service->state($request->user(), isset($data['policy_id']) ? (int) $data['policy_id'] : null);
+        $data = $request->validate(['policy_id' => 'required_with:version_id|nullable|integer|min:1', 'version_id' => 'nullable|integer|min:1', 'history_page' => 'nullable|integer|min:1']);
+        $state = $service->state($request->user(), isset($data['policy_id']) ? (int) $data['policy_id'] : null, isset($data['version_id']) ? (int) $data['version_id'] : null, (int) ($data['history_page'] ?? 1));
         if ($request->is('api/*')) {
             return response()->json($state)->header('Cache-Control', 'private, no-store');
         }
