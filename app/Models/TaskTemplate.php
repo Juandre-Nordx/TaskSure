@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class TaskTemplate extends Model
 {
-    public const FREQUENCIES = ['daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly'];
+    public const FREQUENCIES = ['daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly', 'specific_dates' => 'Specific dates'];
 
     protected $guarded = [];
 
@@ -27,7 +27,7 @@ class TaskTemplate extends Model
 
     protected function casts(): array
     {
-        return ['store_id' => 'integer', 'company_id' => 'integer', 'required_evidence' => 'array', 'active' => 'boolean', 'next_date' => 'date', 'ends_on' => 'date', 'anchor_day' => 'integer', 'scheduled_offset_minutes' => 'integer'];
+        return ['store_id' => 'integer', 'company_id' => 'integer', 'required_evidence' => 'array', 'active' => 'boolean', 'next_date' => 'date', 'ends_on' => 'date', 'anchor_day' => 'integer', 'scheduled_offset_minutes' => 'integer', 'specific_dates' => 'array', 'specific_due_times' => 'array', 'schedule_revision' => 'integer'];
     }
 
     public function employee()
@@ -85,9 +85,26 @@ class TaskTemplate extends Model
         $day = CarbonImmutable::parse($date, config('tasksure.timezone'));
 
         return match ($this->frequency) {
+            'specific_dates' => $this->specificDateOnOrAfter($day->addDay()->toDateString()),
             'daily' => $day->addDay()->toDateString(),
             'weekly' => $day->addWeek()->toDateString(),
             'monthly' => $day->startOfMonth()->addMonth()->day(min($this->anchor_day ?? $day->day, $day->startOfMonth()->addMonth()->daysInMonth))->toDateString(),
         };
+    }
+
+    public function specificDateOnOrAfter(string $from): string
+    {
+        foreach ($this->specific_dates ?? [] as $date) {
+            if ($date >= $from) {
+                return $date;
+            }
+        }
+
+        return CarbonImmutable::parse($this->ends_on->toDateString())->addDay()->toDateString();
+    }
+
+    public function dueTimeOn(string $date): string
+    {
+        return $this->frequency === 'specific_dates' ? ($this->specific_due_times[$date] ?? $this->due_time) : $this->due_time;
     }
 }

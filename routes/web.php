@@ -71,6 +71,8 @@ Route::middleware(['auth', ActiveUser::class, ResolveStore::class, RequireCompan
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/create', [TaskController::class, 'create']);
     Route::get('/recurring-tasks', [TaskRecurrenceController::class, 'index']);
+    Route::get('/recurring-tasks/{template}/edit', [TaskRecurrenceController::class, 'edit']);
+    Route::post('/recurring-tasks/{template}/schedule', [TaskRecurrenceController::class, 'update']);
     Route::post('/tasks/{task}/recurrence', [TaskRecurrenceController::class, 'make']);
     Route::post('/recurring-tasks/{template}/status', [TaskRecurrenceController::class, 'status']);
     Route::get('/reviews', [TaskController::class, 'reviews']);

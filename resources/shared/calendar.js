@@ -10,7 +10,7 @@ export const BUSINESS_TIMEZONE = 'Africa/Johannesburg';
 export function plannedOccurrenceText(event) {
   const p = event.extendedProps;
   const time = value => DateTime.fromISO(value).setZone(BUSINESS_TIMEZONE).toFormat('d MMM yyyy, HH:mm');
-  return [p.assignment_title, `${p.frequency[0].toUpperCase() + p.frequency.slice(1)} recurrence`, `Deadline: ${time(p.due_at)} SAST`,
+  return [p.assignment_title, `${p.frequency[0].toUpperCase() + p.frequency.slice(1).replaceAll('_', ' ')} recurrence`, `Deadline: ${time(p.due_at)} SAST`,
     p.scheduled_at ? `Scheduled start: ${time(p.scheduled_at)} SAST` : '', `Responsible person: ${p.assignee}`, `Store area: ${p.area}`, p.instructions,
     'This is a planned occurrence. A separate task will become available for this date. Each occurrence has its own deadline, proof and history.'].filter(Boolean).join('\n\n');
 }

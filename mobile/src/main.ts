@@ -1,3 +1,4 @@
+import { bindRecurrenceForm, recurrencePayload } from '../../resources/shared/specific-dates.js';
 import './styles.css';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
@@ -18,6 +19,7 @@ import type { Profile, LoginResponse, Task, TaskDetails, Page, Alert, Attachment
 const root = document.querySelector<HTMLDivElement>('#app')!;
 let profile: Profile | null = null;
 let calendar: Calendar | undefined;
+let recurrenceCleanup: (() => void) | undefined;
 let pageVersion = 0;
 let taskFilter = 'open';
 let taskSearch = '';
@@ -49,6 +51,7 @@ function toast(text: string) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 6000);
 }
 function releasePage() {
+  recurrenceCleanup?.(); recurrenceCleanup = undefined;
   clearPolicyDocuments();
   calendar?.destroy(); calendar = undefined;
   objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls.clear();
@@ -494,12 +497,12 @@ async function teamTasks(content: HTMLElement, version: number, reviews = false,
 async function assignTask(content: HTMLElement, version: number) {
   if (profile!.user.role !== 'manager') throw new Error('Only managers can assign tasks in the app.');
   const options = await api.request<TeamOptions>('/team/options'); if (version !== pageVersion) return;
-  content.innerHTML = pagehead('Assign task', 'Choose an active manager or employee in your permitted team. Enter times in SAST.') + `<section class="card"><form id="assign-task" class="stack"><div><label for="task-title">Title</label><input id="task-title" name="title" required maxlength="180"></div><div><label for="instructions">Instructions</label><textarea id="instructions" name="instructions" required maxlength="10000"></textarea></div><div><label for="assignee">Responsible person</label><select id="assignee" name="employee_id" required><option value="">Choose a person</option>${options.assignees.map(person => `<option value="${person.id}">${e(person.name)} · ${e(person.role)}</option>`).join('')}</select></div><div><label for="category">Category</label><select id="category" name="category_id" required>${options.categories.map(category => `<option value="${category.id}">${e(category.name)}</option>`).join('')}</select>${! options.categories.length ? '<p class="error">Ask your store owner to add a category in Store settings.</p>' : ''}</div><div><label for="area">Store area</label><input id="area" name="area" required maxlength="100"></div><div><label for="priority">Priority</label><select id="priority" name="priority">${['low', 'normal', 'high', 'urgent'].map(priority => `<option ${priority === 'normal' ? 'selected' : ''}>${priority}</option>`).join('')}</select></div><fieldset><legend>Required proof for each completion</legend>${['photo', 'document', 'note'].map(kind => `<label class="check"><input type="checkbox" name="required_evidence" value="${kind}" ${kind !== 'document' ? 'checked' : ''}>${kind === 'note' ? 'Completion note' : kind === 'document' ? 'PDF document' : 'Photo'}</label>`).join('')}</fieldset><div><label for="scheduled">Scheduled start · SAST (optional)</label><input id="scheduled" name="scheduled_at" type="datetime-local"></div><div><label for="due">Deadline · SAST</label><input id="due" name="due_at" type="datetime-local" required></div>${recurrenceFields()}<p class="error" id="assign-error" role="alert"></p><button class="btn primary" ${! options.categories.length ? 'disabled' : ''}>Assign task</button></form></section>`;
-  bindRecurrenceFields(content);
+  content.innerHTML = pagehead('Assign task', 'Choose an active manager or employee in your permitted team. Enter times in SAST.') + `<section class="card"><form id="assign-task" class="stack"><div><label for="task-title">Title</label><input id="task-title" name="title" required maxlength="180"></div><div><label for="instructions">Instructions</label><textarea id="instructions" name="instructions" required maxlength="10000"></textarea></div><div><label for="assignee">Responsible person</label><select id="assignee" name="employee_id" required><option value="">Choose a person</option>${options.assignees.map(person => `<option value="${person.id}">${e(person.name)} · ${e(person.role)}</option>`).join('')}</select></div><div><label for="category">Category</label><select id="category" name="category_id" required>${options.categories.map(category => `<option value="${category.id}">${e(category.name)}</option>`).join('')}</select>${! options.categories.length ? '<p class="error">Ask your store owner to add a category in Store settings.</p>' : ''}</div><div><label for="area">Store area</label><input id="area" name="area" required maxlength="100"></div><div><label for="priority">Priority</label><select id="priority" name="priority">${['low', 'normal', 'high', 'urgent'].map(priority => `<option ${priority === 'normal' ? 'selected' : ''}>${priority}</option>`).join('')}</select></div><fieldset><legend>Required proof for each completion</legend>${['photo', 'document', 'note'].map(kind => `<label class="check"><input type="checkbox" name="required_evidence" value="${kind}" ${kind !== 'document' ? 'checked' : ''}>${kind === 'note' ? 'Completion note' : kind === 'document' ? 'PDF document' : 'Photo'}</label>`).join('')}</fieldset><div data-interval><label for="scheduled">Scheduled start · SAST (optional)</label><input id="scheduled" name="scheduled_at" type="datetime-local"></div><div data-interval><label for="due">Deadline · SAST</label><input id="due" name="due_at" type="datetime-local" required></div>${recurrenceFields()}<p class="error" id="assign-error" role="alert"></p><button type="submit" class="btn primary" ${! options.categories.length ? 'disabled' : ''}>Assign task</button></form></section>`;
+  recurrenceCleanup = bindRecurrenceForm(content.querySelector<HTMLFormElement>('#assign-task')!);
   content.querySelector<HTMLFormElement>('#assign-task')!.onsubmit = async event => {
     event.preventDefault(); const form = event.currentTarget as HTMLFormElement; const fields = new FormData(form);
-    const body = { ...Object.fromEntries(fields), required_evidence: fields.getAll('required_evidence') };
-    const button = form.querySelector<HTMLButtonElement>('button')!; button.disabled = true;
+    const body = { ...recurrencePayload(fields), required_evidence: fields.getAll('required_evidence') };
+    const button = form.querySelector<HTMLButtonElement>('button[type=submit]')!; button.disabled = true;
     try { const response = await api.post<{ data: { id: number } }>('/team/tasks', body); toast('Task assigned.'); navigate(`/tasks/${response.data.id}`); }
     catch (error) { content.querySelector('#assign-error')!.textContent = message(error); }
     finally { button.disabled = false; }
@@ -507,26 +510,24 @@ async function assignTask(content: HTMLElement, version: number) {
   bindRefresh(content);
 }
 
-function recurrenceFields(): string {
-  return '<div><label for="recurrence">Repeat</label><select id="recurrence" name="recurrence"><option value="">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div><div id="recurrence-end" hidden><label for="recurrence-until">Repeat until · SAST (optional)</label><input id="recurrence-until" type="date" name="recurrence_until" disabled><p class="field-help">Leave empty to repeat until paused. Each occurrence has its own deadline and proof. Monthly tasks keep their day, using month-end in shorter months.</p></div>';
+function datePicker(dates: string[] = [], time = '16:00', minimum = today()): string {
+  return `<div data-specific-picker data-initial="${e(JSON.stringify(dates))}" data-time="${e(time)}" data-min="${e(minimum)}"></div>`;
 }
-function bindRecurrenceFields(content: HTMLElement) {
-  const repeat = content.querySelector<HTMLSelectElement>('#recurrence')!;
-  const end = content.querySelector<HTMLInputElement>('#recurrence-until')!;
-  const due = content.querySelector<HTMLInputElement>('#due')!;
-  const update = () => { content.querySelector<HTMLElement>('#recurrence-end')!.hidden = ! repeat.value; end.disabled = ! repeat.value; end.min = due.value.slice(0, 10); };
-  repeat.onchange = update; due.onchange = update; update();
+function recurrenceFields(): string {
+  return `<div><label for="recurrence">Repeat</label><select id="recurrence" name="recurrence"><option value="">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="specific_dates">Specific dates</option></select></div><div data-recurrence-end hidden><label for="recurrence-until">Repeat until · SAST (optional)</label><input id="recurrence-until" type="date" name="recurrence_until" disabled><p class="field-help">Leave empty to repeat until paused. Each occurrence has its own deadline and proof. Monthly tasks keep their day, using month-end in shorter months.</p></div><input type="hidden" name="creation_key" value="${crypto.randomUUID()}">${datePicker()}`;
 }
 function recurrencePanel(task: TaskDetails): string {
   const plan = task.recurrence;
-  if (plan) return `<section class="card"><h2>Recurring task</h2><p class="mt-3"><strong>${e(label(plan.frequency))}</strong> · ${e(plan.state)}</p><p class="field-help">Next occurrence date: ${e(plan.next_date)} · Due ${e(plan.due_time)} SAST. ${plan.ends_on ? 'Repeats through '+e(plan.ends_on)+'.' : 'Repeats until paused.'}</p><p class="field-help">Each occurrence keeps its own proof and history. Changing this task changes this occurrence only.</p>${task.permissions.recurrence && plan.state !== 'Finished' ? `<button class="btn mt-3" id="series-status">${plan.active ? 'Pause series' : 'Resume series'}</button><p class="field-help">Pausing leaves existing tasks unchanged. Resuming catches up missed occurrences.</p>` : ''}<p class="error" id="recurrence-error" role="alert"></p></section>`;
+  if (plan) return `<section class="card"><h2>Recurring task</h2><p class="mt-3"><strong>${e(label(plan.frequency))}</strong> · ${e(plan.state)}</p><p class="field-help">Next occurrence date: ${e(plan.next_date)} · Due ${e(plan.due_time)} SAST. ${plan.ends_on ? 'Repeats through '+e(plan.ends_on)+'.' : 'Repeats until paused.'}</p><p class="field-help">Each occurrence keeps its own proof and history. Changing this task changes this occurrence only.</p>${task.permissions.recurrence && plan.state !== 'Finished' ? `<button class="btn mt-3" id="series-status">${plan.active ? 'Pause series' : 'Resume series'}</button><p class="field-help">Pausing leaves existing tasks unchanged. Resuming catches up missed occurrences.</p>` : ''}${plan.frequency === 'specific_dates' ? `<p class="field-help">${plan.specific_dates?.length || 0} selected dates: ${e(plan.specific_dates?.join(', '))}</p>${task.permissions.recurrence ? `<details class="mt-4"><summary>Edit specific dates</summary><form id="edit-specific-schedule" class="field"><input type="hidden" name="schedule_revision" value="${plan.schedule_revision}">${datePicker(plan.specific_dates || [], plan.due_time)}<label>Schedule status<select name="active"><option value="1" ${plan.active || plan.state === 'Finished' ? 'selected' : ''}>Active</option><option value="0" ${!plan.active && plan.state !== 'Finished' ? 'selected' : ''}>Paused</option></select></label><p class="field-help">Only future unstarted work changes. Past, started, completed and previously worked occurrences retain their proof and history.</p><button type="submit" class="btn primary mt-3">Save schedule</button></form></details>` : ''}` : ''}<p class="error" id="recurrence-error" role="alert"></p></section>`;
   if (! task.permissions.recurrence) return '';
   const tomorrow = DateTime.now().setZone(BUSINESS_TIMEZONE).plus({ days: 1 }).toISODate()!;
   const afterDue = DateTime.fromISO(task.due_at).setZone(BUSINESS_TIMEZONE).plus({ days: 1 }).toISODate()!;
   const first = tomorrow > afterDue ? tomorrow : afterDue;
-  return `<section class="card"><h2>Make this task recurring</h2><form class="field" id="make-recurring"><label for="repeat-frequency">Repeat</label><select id="repeat-frequency" name="frequency"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select><label class="mt-3" for="first-repeat">First repeat date · SAST</label><input id="first-repeat" name="next_date" type="date" required value="${first}"><label class="mt-3" for="repeat-end">Repeat until · SAST (optional)</label><input id="repeat-end" name="ends_on" type="date"><p class="field-help">Future tasks use the current instructions, responsible person, proof requirements and deadline time. This task and its history stay unchanged.</p><p class="error" id="recurrence-error" role="alert"></p><button class="btn primary mt-3">Make recurring</button></form></section>`;
+  return `<section class="card"><h2>Make this task recurring</h2><form class="field" id="make-recurring"><label for="repeat-frequency">Repeat</label><select id="repeat-frequency" name="frequency"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="specific_dates">Specific dates</option></select><div data-interval><label class="mt-3" for="first-repeat">First repeat date · SAST</label><input id="first-repeat" name="next_date" type="date" required value="${first}"><label class="mt-3" for="repeat-end">Repeat until · SAST (optional)</label><input id="repeat-end" name="ends_on" type="date"></div>${datePicker([], DateTime.fromISO(task.due_at).setZone(BUSINESS_TIMEZONE).toFormat('HH:mm'), today() > afterDue ? today() : afterDue)}<p class="field-help">Future tasks use the current instructions, responsible person, proof requirements and deadline time. This task and its history stay unchanged.</p><p class="error" id="recurrence-error" role="alert"></p><button type="submit" class="btn primary mt-3">Make recurring</button></form></section>`;
 }
 function bindTaskRecurrence(content: HTMLElement, task: TaskDetails) {
+  const datedForm = content.querySelector<HTMLFormElement>('#make-recurring, #edit-specific-schedule');
+  if (datedForm) recurrenceCleanup = bindRecurrenceForm(datedForm);
   const send = async (path: string, body: Record<string, unknown>, button: HTMLButtonElement) => {
     button.disabled = true;
     try { await api.post(path, body); await render(); }
@@ -534,7 +535,11 @@ function bindTaskRecurrence(content: HTMLElement, task: TaskDetails) {
   };
   content.querySelector<HTMLFormElement>('#make-recurring')?.addEventListener('submit', event => {
     event.preventDefault(); const form = event.currentTarget as HTMLFormElement;
-    void send(`/tasks/${task.id}/recurrence`, Object.fromEntries(new FormData(form)), form.querySelector('button')!);
+    void send(`/tasks/${task.id}/recurrence`, recurrencePayload(new FormData(form)), form.querySelector('button[type=submit]')!);
+  });
+  content.querySelector<HTMLFormElement>('#edit-specific-schedule')?.addEventListener('submit', event => {
+    event.preventDefault(); const form = event.currentTarget as HTMLFormElement;
+    void send(`/recurring-tasks/${task.recurrence!.id}/schedule`, recurrencePayload(new FormData(form)), form.querySelector('button[type=submit]')!);
   });
   content.querySelector<HTMLButtonElement>('#series-status')?.addEventListener('click', event => {
     void send(`/recurring-tasks/${task.recurrence!.id}/status`, { active: ! task.recurrence!.active }, event.currentTarget as HTMLButtonElement);

@@ -67,7 +67,7 @@ class CalendarEvents
             $date = $this->firstDate($template, $filters['from']);
             while ($date <= $filters['to'] && (! $template->ends_on || $date <= $template->ends_on->toDateString())) {
                 if (! $existing->has($template->id.':'.$date)) {
-                    $due = BusinessTime::utc($date.' '.$template->due_time);
+                    $due = BusinessTime::utc($date.' '.$template->dueTimeOn($date));
                     $events->push([
                         'id' => 'recurring:'.$template->id.':'.$date, 'title' => $template->title.' · Planned recurring',
                         'start' => $due->toIso8601String(), 'editable' => false, 'startEditable' => false, 'durationEditable' => false,
@@ -90,6 +90,9 @@ class CalendarEvents
 
     private function firstDate(TaskTemplate $template, string $from): string
     {
+        if ($template->frequency === 'specific_dates') {
+            return $template->specificDateOnOrAfter(max($from, $template->next_date->toDateString()));
+        }
         $cursor = CarbonImmutable::parse($template->next_date->toDateString(), config('tasksure.timezone'));
         $target = CarbonImmutable::parse($from, config('tasksure.timezone'));
         if ($cursor->gte($target)) {

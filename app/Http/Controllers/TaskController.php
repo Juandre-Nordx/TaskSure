@@ -13,12 +13,14 @@ use App\Services\TaskQuery;
 use App\Services\TaskRecurrence;
 use App\Services\TaskWorkflow;
 use App\Support\BusinessTime as BT;
+use App\Support\SpecificDates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\File;
+use Illuminate\Validation\ValidationException;
 
 class TaskController extends Controller
 {
@@ -73,23 +75,34 @@ class TaskController extends Controller
     public function store(Request $r, AlertService $alerts)
     {
         abort_unless($r->user()->isSupervisor(), 403);
-        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => 'required|exists:users,id', 'category_id' => ['required', Rule::exists('category_store', 'category_id')->where('store_id', $r->user()->storeId())], 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'required|in:photo,document,note|distinct', 'scheduled_at' => 'nullable|date_format:Y-m-d\TH:i', 'due_at' => 'required|date_format:Y-m-d\TH:i|after_or_equal:scheduled_at', 'recurrence' => 'nullable|in:daily,weekly,monthly', 'recurrence_until' => 'nullable|date_format:Y-m-d|prohibited_unless:recurrence,daily,weekly,monthly']);
+        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => 'required|exists:users,id', 'category_id' => ['required', Rule::exists('category_store', 'category_id')->where('store_id', $r->user()->storeId())], 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'required|in:photo,document,note|distinct', 'scheduled_at' => 'nullable|date_format:Y-m-d\TH:i', 'due_at' => 'required_unless:recurrence,specific_dates|nullable|date_format:Y-m-d\TH:i|after_or_equal:scheduled_at|prohibited_if:recurrence,specific_dates', 'recurrence' => 'nullable|in:daily,weekly,monthly,specific_dates', 'recurrence_until' => 'nullable|date_format:Y-m-d|prohibited_unless:recurrence,daily,weekly,monthly', 'specific_dates' => 'required_if:recurrence,specific_dates|nullable|array|min:1|max:366|prohibited_unless:recurrence,specific_dates', 'specific_dates.*' => 'required|date_format:Y-m-d|distinct', 'due_time' => 'required_if:recurrence,specific_dates|nullable|date_format:H:i|prohibited_unless:recurrence,specific_dates', 'creation_key' => 'required_if:recurrence,specific_dates|nullable|uuid|prohibited_unless:recurrence,specific_dates']);
         $e = User::findOrFail($v['employee_id']);
         abort_unless($e->inStore($r->user()->storeId()) && $r->user()->canManageEmployee($e), 403);
         $v['scheduled_at'] = filled($v['scheduled_at'] ?? null) ? BT::utc($v['scheduled_at']) : null;
-        $v['due_at'] = BT::utc($v['due_at']);
+        $specific = ($v['recurrence'] ?? null) === 'specific_dates';
+        $dates = $specific ? SpecificDates::normalise($v['specific_dates']) : [];
+        $time = $specific ? $v['due_time'] : null;
+        $creationKey = $specific ? $v['creation_key'] : null;
+        if ($specific && $v['scheduled_at']) {
+            throw ValidationException::withMessages(['scheduled_at' => 'Use individual task scheduling for specific dates.']);
+        }
+        $v['due_at'] = $specific ? BT::utc($dates[0].' '.$time) : BT::utc($v['due_at']);
         $frequency = $v['recurrence'] ?? null;
         $endsOn = $v['recurrence_until'] ?? null;
-        unset($v['recurrence'], $v['recurrence_until']);
-        if ($frequency) {
+        unset($v['recurrence'], $v['recurrence_until'], $v['specific_dates'], $v['due_time'], $v['creation_key']);
+        if ($frequency && ! $specific) {
             $date = BT::show($v['due_at'], 'Y-m-d');
             $r->validate(['due_at' => 'after_or_equal:'.now()->timezone(config('tasksure.timezone'))->startOfDay()->format('Y-m-d\TH:i'), 'recurrence_until' => 'nullable|after_or_equal:'.$date]);
         }
-        $t = DB::transaction(function () use ($r, $v, $e, $alerts, $frequency, $endsOn) {
+        $fingerprint = hash('sha256', json_encode([$v, $dates], JSON_THROW_ON_ERROR));
+        $t = DB::transaction(function () use ($r, $v, $e, $alerts, $frequency, $endsOn, $dates, $time, $creationKey, $fingerprint) {
+            if ($creationKey && ($existing = app(TaskRecurrence::class)->creation($r->user(), $creationKey, $fingerprint))) {
+                return $existing->tasks()->oldest('id')->firstOrFail();
+            }
             $t = Task::create($v + ['creator_id' => $r->user()->id]);
             $this->workflow->log($t, $r->user(), 'assigned', 'Task assigned.');
             if ($frequency) {
-                app(TaskRecurrence::class)->make($t, $r->user(), $frequency, null, $endsOn);
+                app(TaskRecurrence::class)->make($t, $r->user(), $frequency, null, $endsOn, $dates, $time, $creationKey, $fingerprint);
             }
             $alerts->send($e, $t, 'assigned', 'You were assigned '.$t->title, 'assigned:'.$t->id);
 

@@ -1,3 +1,4 @@
+import { bindRecurrenceForm } from '../shared/specific-dates.js';
 import { Calendar } from '@fullcalendar/core';
 import { calendarOptions, plannedOccurrenceText } from '../shared/calendar.js';
 import { responseError } from '../shared/errors.js';
@@ -39,9 +40,5 @@ document.querySelectorAll('[data-owner-password-reset]').forEach(form=>{
  window.addEventListener('pageshow',()=>form.querySelectorAll('[type="password"]').forEach(input=>{input.value='';}));
 });
 
-// Recurrence is optional; hidden end dates never change a one-off assignment.
-document.querySelectorAll('[data-recurrence-options]').forEach(container=>{
- const repeat=container.querySelector('[name="recurrence"]'),end=container.querySelector('[name="recurrence_until"]'),section=container.querySelector('[data-recurrence-end]'),help=container.querySelector('[data-recurrence-help]'),due=container.closest('form').querySelector('[name="due_at"]');
- const update=()=>{section.hidden=!repeat.value;help.hidden=!repeat.value;end.disabled=!repeat.value;end.min=due?.value.slice(0,10)||'';};
- repeat.addEventListener('change',update);due?.addEventListener('change',update);update();
-});
+// Shared date selection and range tools use the same behavior on web and native.
+document.querySelectorAll('[data-specific-picker]').forEach(picker => bindRecurrenceForm(picker.closest('form')));

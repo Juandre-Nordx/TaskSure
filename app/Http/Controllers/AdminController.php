@@ -8,6 +8,8 @@ use App\Models\Task;
 use App\Models\TaskTemplate;
 use App\Models\User;
 use App\Services\ScheduledTasks;
+use App\Services\TaskRecurrence;
+use App\Support\SpecificDates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -134,8 +136,34 @@ class AdminController extends Controller
     {
         $this->admin($r);
         abort_if($template && $template->store_id !== $r->user()->storeId(), 404);
-        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => ['required', Rule::exists('store_user', 'user_id')->where('store_id', $r->user()->storeId())->where('active', true)], 'category_id' => ['required', Rule::exists('category_store', 'category_id')->where('store_id', $r->user()->storeId())], 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'in:photo,document,note|distinct', 'frequency' => 'required|in:daily,weekly,monthly', 'next_date' => 'required|date_format:Y-m-d', 'due_time' => 'required|date_format:H:i', 'active' => 'required|boolean', 'ends_on' => 'nullable|date_format:Y-m-d|after_or_equal:next_date']);
+        $v = $r->validate(['title' => 'required|string|max:180', 'instructions' => 'required|string|max:10000', 'area' => 'required|string|max:100', 'employee_id' => ['required', Rule::exists('store_user', 'user_id')->where('store_id', $r->user()->storeId())->where('active', true)], 'category_id' => ['required', Rule::exists('category_store', 'category_id')->where('store_id', $r->user()->storeId())], 'priority' => ['required', Rule::in(Task::PRIORITIES)], 'required_evidence' => 'required|array|min:1', 'required_evidence.*' => 'in:photo,document,note|distinct', 'frequency' => 'required|in:daily,weekly,monthly,specific_dates', 'next_date' => 'required_unless:frequency,specific_dates|nullable|date_format:Y-m-d', 'due_time' => 'required|date_format:H:i', 'active' => 'required|boolean', 'ends_on' => 'nullable|date_format:Y-m-d|after_or_equal:next_date|prohibited_if:frequency,specific_dates', 'specific_dates' => 'required_if:frequency,specific_dates|nullable|array|min:1|max:366|prohibited_unless:frequency,specific_dates', 'specific_dates.*' => 'required|date_format:Y-m-d|distinct', 'creation_key' => ['nullable', 'uuid', Rule::requiredIf(! $template && $r->input('frequency') === 'specific_dates')], 'schedule_revision' => ['nullable', 'integer', 'min:0', Rule::requiredIf($template && $r->input('frequency') === 'specific_dates')]]);
         abort_unless(User::findOrFail($v['employee_id'])->inStore($r->user()->storeId()) && in_array(User::findOrFail($v['employee_id'])->role, User::ASSIGNEE_ROLES), 422);
+        if ($template && (($template->frequency === 'specific_dates') !== ($v['frequency'] === 'specific_dates'))) {
+            throw ValidationException::withMessages(['frequency' => 'Create a new schedule to change between specific dates and an interval. Existing work stays with its original series.']);
+        }
+        if ($v['frequency'] === 'specific_dates') {
+            $dates = SpecificDates::normalise($v['specific_dates'], $template?->specific_dates ?? []);
+            $recurrence = app(TaskRecurrence::class);
+            if ($template) {
+                $template = $recurrence->updateSpecific($template, $r->user(), $dates, $v['due_time'], (int) $v['schedule_revision'], (bool) $v['active'], $v);
+            } else {
+                $fingerprint = hash('sha256', json_encode(array_intersect_key($v, array_flip(['title', 'instructions', 'area', 'employee_id', 'category_id', 'priority', 'required_evidence', 'due_time', 'active'])) + ['specific_dates' => $dates], JSON_THROW_ON_ERROR));
+                $template = DB::transaction(function () use ($recurrence, $r, $v, $dates, $fingerprint) {
+                    if ($existing = $recurrence->creation($r->user(), $v['creation_key'], $fingerprint)) {
+                        return $existing;
+                    }
+                    $content = array_intersect_key($v, array_flip(['title', 'instructions', 'area', 'employee_id', 'category_id', 'priority', 'required_evidence', 'due_time', 'active']));
+                    $plan = TaskTemplate::create($content + ['creator_id' => $r->user()->id, 'store_id' => $r->user()->storeId(), 'frequency' => 'specific_dates', 'next_date' => $dates[0], 'ends_on' => end($dates), 'specific_dates' => $dates, 'specific_due_times' => array_fill_keys($dates, $v['due_time']), 'schedule_revision' => 0, 'creation_key' => $v['creation_key'], 'creation_fingerprint' => $fingerprint]);
+                    AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'template_saved', 'data' => ['template_id' => $plan->id, 'specific_dates' => $dates]]);
+
+                    return $plan;
+                });
+            }
+            app(ScheduledTasks::class)->occurrences($template->id);
+
+            return back()->with('success', 'Specific-date schedule saved. Started and completed work is unchanged.');
+        }
+        unset($v['specific_dates'], $v['creation_key'], $v['schedule_revision']);
         $template ??= new TaskTemplate(['creator_id' => $r->user()->id, 'store_id' => $r->user()->storeId()]);
         DB::transaction(function () use (&$template, $v, $r) {
             if ($template->exists) {

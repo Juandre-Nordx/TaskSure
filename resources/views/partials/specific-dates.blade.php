@@ -1,0 +1,1 @@
+<div class="wide" data-specific-picker data-initial="{{ json_encode(old('specific_dates',$dates??[])) }}" data-min="{{ $minimum??now()->timezone(config('tasksure.timezone'))->toDateString() }}" data-time="{{ old('due_time',$dueTime??'16:00') }}"></div>
