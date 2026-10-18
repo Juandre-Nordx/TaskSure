@@ -1,6 +1,7 @@
 @extends('layout')
 @section('title',$store?'Edit store':'Create store')
 @section('content')
+@include('platform.tabs')
 <div class="pagehead"><h1>{{ $store?'Edit store':'Create store' }}</h1><a class="btn" href="/super-admin">Back to stores</a></div>
 <section class="card">
     <form method="post" action="{{ $store?'/super-admin/stores/'.$store->id:'/super-admin/stores' }}" class="stack" data-owner-setup>

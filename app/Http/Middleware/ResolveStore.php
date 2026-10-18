@@ -31,6 +31,7 @@ class ResolveStore
             }
         }
         $store = $selected && $user->inStore((int) $selected, false) ? Store::with('company')->find($selected) : null;
+        $request->attributes->set('activity_store', $store);
         $allow = $request->routeIs('stores.*', 'mobile.stores.*', 'mobile.me');
         if (! $allow) {
             $claimed = $request->header('X-TaskSure-Store') ?? $request->input('_workspace_store_id');

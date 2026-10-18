@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Task;
 use App\Models\TaskTemplate;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\ScheduledTasks;
 use App\Services\TaskRecurrence;
 use App\Support\SpecificDates;
@@ -46,8 +47,10 @@ class AdminController extends Controller
         $data = $r->validate(['user_id' => 'required|integer']);
         $user = User::whereKey($data['user_id'])->whereIn('role', User::ASSIGNEE_ROLES)->where('active', true)
             ->whereHas('stores', fn ($q) => $q->whereIn('stores.id', $r->user()->stores()->wherePivot('active', true)->select('stores.id')))->firstOrFail();
-        $user->stores()->syncWithoutDetaching([$r->user()->storeId() => ['active' => true]]);
-        AccountAudit::create(['actor_id' => $r->user()->id, 'subject_id' => $user->id, 'action' => 'store_membership_added']);
+        DB::transaction(function () use ($user, $r) {
+            $user->stores()->syncWithoutDetaching([$r->user()->storeId() => ['active' => true]]);
+            AccountAudit::create(['actor_id' => $r->user()->id, 'subject_id' => $user->id, 'action' => 'store_membership_added']);
+        });
 
         return back()->with('success', 'Team member added to this store. Configure manager scope separately for this store.');
     }
@@ -72,6 +75,7 @@ class AdminController extends Controller
         abort_unless(User::whereIn('id', $scope)->whereIn('role', User::ASSIGNEE_ROLES)->count() === count($scope), 422, 'Manager scope can contain managers and employees only.');
         DB::transaction(function () use ($user, $v, $r, $new, $editable, $scope) {
             $before = $user->exists ? $user->only(['name', 'email', 'role', 'active']) : [];
+            $membershipBefore = $user->exists ? (bool) DB::table('store_user')->where('store_id', $r->user()->storeId())->where('user_id', $user->id)->value('active') : null;
             $scopeBefore = $user->exists ? $user->employees()->pluck('users.id')->all() : [];
             $identity = ['name' => $v['name'], 'email' => $v['email']];
             if (filled($v['password'] ?? null)) {
@@ -95,7 +99,7 @@ class AdminController extends Controller
             } elseif (! $v['active']) {
                 $user->tokens()->where('store_id', $r->user()->storeId())->delete();
             }
-            AccountAudit::create(['actor_id' => $r->user()->id, 'subject_id' => $user->id, 'action' => $new ? 'created' : 'updated', 'data' => ['before' => $before, 'after' => $user->only(['name', 'email', 'role', 'active']), 'membership_active' => (bool) $v['active'], 'scope_before' => $scopeBefore, 'scope_after' => $scope, 'password_changed' => isset($identity['password'])]]);
+            AccountAudit::create(['actor_id' => $r->user()->id, 'subject_id' => $user->id, 'action' => $new ? 'created' : 'updated', 'data' => ['before' => $before, 'after' => $user->only(['name', 'email', 'role', 'active']), 'membership_before' => $membershipBefore, 'membership_active' => (bool) $v['active'], 'scope_before' => $scopeBefore, 'scope_after' => $scope, 'password_changed' => isset($identity['password'])]]);
         });
 
         return back()->with('success', 'Account and store access saved.');
@@ -115,9 +119,11 @@ class AdminController extends Controller
         if (Category::forStore($r->user())->where('name', $v['name'])->exists()) {
             throw ValidationException::withMessages(['name' => 'This store already has that category.']);
         }
-        $category = Category::firstOrCreate($v);
-        $category->stores()->syncWithoutDetaching([$r->user()->storeId()]);
-        AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'category_created', 'data' => $v]);
+        DB::transaction(function () use ($v, $r) {
+            $category = Category::firstOrCreate($v);
+            $category->stores()->syncWithoutDetaching([$r->user()->storeId()]);
+            AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'category_created', 'data' => $v + ['category_id' => $category->id]]);
+        });
 
         return back()->with('success', 'Category added to this store.');
     }
@@ -126,8 +132,11 @@ class AdminController extends Controller
     {
         $this->admin($r);
         $v = $r->validate(['reminder_minutes' => 'required|integer|min:1|max:10080']);
-        DB::table('store_settings')->updateOrInsert(['store_id' => $r->user()->storeId(), 'key' => 'reminder_minutes'], ['value' => $v['reminder_minutes']]);
-        AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'reminders_updated', 'data' => $v]);
+        DB::transaction(function () use ($v, $r) {
+            $before = ['reminder_minutes' => DB::table('store_settings')->where('store_id', $r->user()->storeId())->where('key', 'reminder_minutes')->value('value') ?? config('tasksure.reminder_minutes')];
+            DB::table('store_settings')->updateOrInsert(['store_id' => $r->user()->storeId(), 'key' => 'reminder_minutes'], ['value' => $v['reminder_minutes']]);
+            AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'reminders_updated', 'data' => $v + ['before' => $before]]);
+        });
 
         return back()->with('success', 'Store reminder interval saved.');
     }
@@ -154,7 +163,7 @@ class AdminController extends Controller
                     }
                     $content = array_intersect_key($v, array_flip(['title', 'instructions', 'area', 'employee_id', 'category_id', 'priority', 'required_evidence', 'due_time', 'active']));
                     $plan = TaskTemplate::create($content + ['creator_id' => $r->user()->id, 'store_id' => $r->user()->storeId(), 'frequency' => 'specific_dates', 'next_date' => $dates[0], 'ends_on' => end($dates), 'specific_dates' => $dates, 'specific_due_times' => array_fill_keys($dates, $v['due_time']), 'schedule_revision' => 0, 'creation_key' => $v['creation_key'], 'creation_fingerprint' => $fingerprint]);
-                    AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'template_saved', 'data' => ['template_id' => $plan->id, 'specific_dates' => $dates]]);
+                    AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'template_saved', 'data' => ['template_id' => $plan->id, 'specific_dates' => $dates, 'created' => true, 'after' => app(ActivityLogger::class)->snapshot($plan)]]);
 
                     return $plan;
                 });
@@ -169,11 +178,13 @@ class AdminController extends Controller
             if ($template->exists) {
                 $template = TaskTemplate::lockForUpdate()->findOrFail($template->id);
             }
+            $created = ! $template->exists;
+            $before = $created ? [] : app(ActivityLogger::class)->snapshot($template);
             if (! $template->exists || $template->frequency !== $v['frequency'] || $template->next_date->toDateString() !== $v['next_date']) {
                 $v['anchor_day'] = (int) substr($v['next_date'], 8, 2);
             }
             $template->fill($v)->save();
-            AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'template_saved', 'data' => ['template_id' => $template->id] + $v]);
+            AccountAudit::create(['actor_id' => $r->user()->id, 'action' => 'template_saved', 'data' => ['template_id' => $template->id, 'created' => $created, 'before' => $before, 'after' => app(ActivityLogger::class)->snapshot($template)] + $v]);
         });
         app(ScheduledTasks::class)->occurrences($template->id);
 

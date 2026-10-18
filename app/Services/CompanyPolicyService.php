@@ -120,6 +120,7 @@ class CompanyPolicyService
                 $company = $this->company($owner, true);
                 $entry = $this->entry($company, $policyId, $create);
                 $this->checkRevision($entry, $revision);
+                $before = app(ActivityLogger::class)->snapshot($entry);
                 $document = ['path' => null, 'name' => null, 'size' => null, 'sha256' => null];
                 if (($format ?? ($pdf ? 'pdf' : 'text')) === 'pdf') {
                     if ($pdf) {
@@ -150,7 +151,7 @@ class CompanyPolicyService
                     $fields['draft_pdf_'.$field] = $value;
                 }
                 $entry->update($fields);
-                AccountAudit::create(['actor_id' => $owner->id, 'action' => 'policy_draft_saved', 'data' => ['company_id' => $company->id, 'policy_id' => $entry->id, 'draft_revision' => $revision + 1]]);
+                AccountAudit::create(['actor_id' => $owner->id, 'action' => 'policy_draft_saved', 'data' => ['company_id' => $company->id, 'policy_id' => $entry->id, 'draft_revision' => $revision + 1, 'before' => $before, 'after' => app(ActivityLogger::class)->snapshot($entry), 'pdf_uploaded' => $pdf !== null, 'changed_fields' => array_keys($entry->getChanges())]]);
 
                 return $entry->fresh();
             });
@@ -184,6 +185,7 @@ class CompanyPolicyService
             if ($entry->draft_pdf_path && ! Storage::disk('evidence')->exists($entry->draft_pdf_path)) {
                 throw ValidationException::withMessages(['policy_pdf' => 'The draft PDF is unavailable. Upload it again before publishing.']);
             }
+            $before = ['current_policy_version_id' => $entry->current_policy_version_id];
             $policy = $entry->versions()->create([
                 'company_id' => $company->id,
                 'version' => ((int) $entry->versions()->max('version')) + 1,
@@ -198,7 +200,7 @@ class CompanyPolicyService
                     app(AlertService::class)->send($person, null, 'policy_published', 'Company policy “'.Str::limit($policy->title, 100).'” version '.$policy->version.' is ready. Read and acknowledge it to continue.', 'policy:'.$policy->id.':user:'.$person->id, $policy->company_id);
                 }
             });
-            AccountAudit::create(['actor_id' => $owner->id, 'action' => 'policy_published', 'data' => ['company_id' => $company->id, 'policy_version_id' => $policy->id]]);
+            AccountAudit::create(['actor_id' => $owner->id, 'action' => 'policy_published', 'data' => ['company_id' => $company->id, 'policy_version_id' => $policy->id, 'before' => $before, 'after' => app(ActivityLogger::class)->snapshot($policy)]]);
 
             return $policy;
         });

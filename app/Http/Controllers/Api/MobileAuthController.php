@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\CompanyPolicyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -17,12 +18,14 @@ class MobileAuthController extends Controller
         $v = $request->validate(['email' => 'required|email|max:180', 'password' => 'required|string|max:1024', 'device_name' => 'required|string|max:80']);
         $user = User::where('email', $v['email'])->first();
         if (! $user || ! Hash::check($v['password'], $user->password) || ! $user->active) {
+            app(ActivityLogger::class)->loginFailure('credentials_rejected', 422, $v['email']);
             throw ValidationException::withMessages(['email' => 'These credentials are invalid or the account is inactive.']);
         }
         abort_unless(in_array($user->role, User::ASSIGNEE_ROLES), 403, 'Managers and employees can use this app. Store owners use the web dashboard.');
         abort_unless($user->stores()->wherePivot('active', true)->exists(), 403, 'Store access is required. Contact your administrator.');
         $profile = $this->profile($user);
         $token = $user->createToken('mobile:'.$v['device_name'], ['mobile', $user->role], now()->addDays(30));
+        app(ActivityLogger::class)->write('account.login', $user, actor: $user);
 
         return response()->json($profile + ['token' => $token->plainTextToken, 'expires_at' => $token->accessToken->expires_at->toIso8601String()])->header('Cache-Control', 'no-store');
     }
@@ -44,7 +47,10 @@ class MobileAuthController extends Controller
 
     public function logout(Request $request)
     {
+        $actor = $request->user();
+        $store = app(ActivityLogger::class)->storeFor($actor);
         $request->user()->currentAccessToken()->delete();
+        app(ActivityLogger::class)->write('account.logout', $actor, actor: $actor, store: $store);
 
         return response()->json(['message' => 'Signed out.']);
     }

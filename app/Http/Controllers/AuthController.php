@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,7 @@ class AuthController extends Controller
         $data = $r->validate(['email' => 'required|email', 'password' => 'required|string']);
         if (Auth::attempt($data + ['active' => true], $r->boolean('remember'))) {
             $r->session()->regenerate();
+            app(ActivityLogger::class)->write('account.login', $r->user(), actor: $r->user());
 
             if ($r->user()->role === 'super_admin') {
                 return redirect('/super-admin');
@@ -25,14 +27,19 @@ class AuthController extends Controller
             return redirect()->intended('/');
         }
 
+        app(ActivityLogger::class)->loginFailure('credentials_rejected', 302, $data['email']);
+
         return back()->withErrors(['email' => 'These credentials are invalid or the account is inactive.'])->onlyInput('email');
     }
 
     public function logout(Request $r)
     {
+        $actor = $r->user();
+        $store = app(ActivityLogger::class)->storeFor($actor);
         Auth::logout();
         $r->session()->invalidate();
         $r->session()->regenerateToken();
+        app(ActivityLogger::class)->write('account.logout', $actor, actor: $actor, store: $store);
 
         return redirect('/login');
     }

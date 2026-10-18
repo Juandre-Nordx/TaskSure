@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\AccountAudit;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -25,6 +26,7 @@ class SuperAdminSetup extends Command
             return self::FAILURE;
         }
         $user = User::where('email', $email)->first();
+        $accountCreated = ! $user;
         if ($user) {
             if ($user->role === 'super_admin') {
                 $this->info('This account is already a Super Admin.');
@@ -51,12 +53,18 @@ class SuperAdminSetup extends Command
             }
             $user = User::withoutEvents(fn () => User::create(['name' => $name, 'email' => $email, 'password' => $password, 'role' => 'super_admin', 'active' => true]));
         }
-        DB::transaction(function () use ($user) {
+        DB::transaction(function () use ($user, $accountCreated) {
+            $user = User::lockForUpdate()->findOrFail($user->id);
+            $before = $accountCreated ? [] : app(ActivityLogger::class)->snapshot($user);
             $user->forceFill(['role' => 'super_admin', 'active' => true])->save();
-            Store::where('owner_id', $user->id)->update(['owner_id' => null]);
+            foreach (Store::where('owner_id', $user->id)->lockForUpdate()->get() as $store) {
+                $storeBefore = app(ActivityLogger::class)->snapshot($store);
+                $store->update(['owner_id' => null]);
+                AccountAudit::create(['store_id' => $store->id, 'company_id' => $store->company_id, 'action' => 'platform_store_saved', 'data' => ['store_created' => false, 'old_owner_id' => $user->id, 'owner_id' => null, 'before' => $storeBefore, 'after' => app(ActivityLogger::class)->snapshot($store)]]);
+            }
             DB::table('sessions')->where('user_id', $user->id)->delete();
             $user->tokens()->delete();
-            AccountAudit::create(['subject_id' => $user->id, 'action' => 'platform_super_admin_setup']);
+            AccountAudit::create(['subject_id' => $user->id, 'action' => 'platform_super_admin_setup', 'data' => ['account_created' => $accountCreated, 'before' => $before, 'after' => app(ActivityLogger::class)->snapshot($user)]]);
         });
         $this->info('Super Admin ready. Sign in on the web at /super-admin. Reassign any stores needing an owner.');
 

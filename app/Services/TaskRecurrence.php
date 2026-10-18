@@ -48,7 +48,7 @@ class TaskRecurrence
             // Only series metadata changes; the original task's status/deadline/proof stay intact.
             $original->update(['task_template_id' => $plan->id, 'occurrence_date' => $date]);
             app(TaskWorkflow::class)->log($original, $actor, 'recurrence_enabled', 'Recurring series created. Existing task history is unchanged.', ['template_id' => $plan->id, 'frequency' => $frequency, 'next_date' => $plan->next_date->toDateString(), 'ends_on' => $endsOn]);
-            AccountAudit::create(['actor_id' => $actor->id, 'action' => 'template_created_from_task', 'data' => ['template_id' => $plan->id, 'task_id' => $original->id]]);
+            AccountAudit::create(['actor_id' => $actor->id, 'action' => 'template_created_from_task', 'data' => ['template_id' => $plan->id, 'task_id' => $original->id, 'after' => app(ActivityLogger::class)->snapshot($plan)]]);
 
             return $plan;
         });
@@ -70,6 +70,7 @@ class TaskRecurrence
     {
         return DB::transaction(function () use ($template, $actor, $dates, $time, $revision, $active, $content) {
             $plan = TaskTemplate::lockForUpdate()->findOrFail($template->id);
+            $before = app(ActivityLogger::class)->snapshot($plan);
             abort_unless($plan->manageableBy($actor), 403);
             if ($plan->frequency !== 'specific_dates' || $plan->schedule_revision !== $revision) {
                 throw ValidationException::withMessages(['schedule_revision' => 'The schedule changed. Reload it before saving.']);
@@ -126,7 +127,7 @@ class TaskRecurrence
             $existingDates = $plan->tasks()->pluck('occurrence_date')->all();
             $next = collect($dates)->first(fn ($date) => ! in_array($date, $existingDates, true)) ?? CarbonImmutable::parse(end($dates))->addDay()->toDateString();
             $plan->update($content + ['specific_dates' => $dates, 'specific_due_times' => $times, 'due_time' => $time, 'next_date' => $next, 'ends_on' => end($dates), 'active' => $active, 'schedule_revision' => $revision + 1]);
-            AccountAudit::create(['actor_id' => $actor->id, 'action' => 'specific_schedule_updated', 'data' => ['template_id' => $plan->id, 'before_dates' => $oldDates, 'dates' => $dates, 'before_due_time' => $previousTime, 'due_time' => $time, 'schedule_revision' => $revision + 1]]);
+            AccountAudit::create(['actor_id' => $actor->id, 'action' => 'specific_schedule_updated', 'data' => ['template_id' => $plan->id, 'before_dates' => $oldDates, 'dates' => $dates, 'before_due_time' => $previousTime, 'due_time' => $time, 'schedule_revision' => $revision + 1, 'before' => $before, 'after' => app(ActivityLogger::class)->snapshot($plan)]]);
 
             return $plan->fresh();
         });
@@ -136,12 +137,13 @@ class TaskRecurrence
     {
         DB::transaction(function () use ($template, $actor, $active) {
             $plan = TaskTemplate::lockForUpdate()->findOrFail($template->id);
+            $before = app(ActivityLogger::class)->snapshot($plan);
             abort_unless($plan->manageableBy($actor), 403);
             if ($active && $plan->ends_on && $plan->next_date->gt($plan->ends_on)) {
                 throw ValidationException::withMessages(['active' => 'This series has ended. Its end date must be updated in Store settings before resuming.']);
             }
             $plan->update(['active' => $active] + ($plan->frequency === 'specific_dates' ? ['schedule_revision' => $plan->schedule_revision + 1] : []));
-            AccountAudit::create(['actor_id' => $actor->id, 'action' => $active ? 'template_resumed' : 'template_paused', 'data' => ['template_id' => $plan->id]]);
+            AccountAudit::create(['actor_id' => $actor->id, 'action' => $active ? 'template_resumed' : 'template_paused', 'data' => ['template_id' => $plan->id, 'before' => $before, 'after' => app(ActivityLogger::class)->snapshot($plan)]]);
         });
     }
 }

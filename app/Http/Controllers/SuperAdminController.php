@@ -6,6 +6,7 @@ use App\Models\AccountAudit;
 use App\Models\Company;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
@@ -43,9 +44,12 @@ class SuperAdminController extends Controller
             'password' => filled($request->input('owner_id')) ? ['prohibited'] : $this->passwordRules(false),
             'password_confirmation' => filled($request->input('owner_id')) ? ['prohibited'] : ['nullable', 'required_with:password', 'string', 'max:72'],
         ]);
-        [$store, $newOwner] = DB::transaction(function () use ($data, $store, $request) {
+        $storeCreated = ! $store;
+        [$store, $newOwner] = DB::transaction(function () use ($data, $store, $request, $storeCreated) {
+            $before = [];
             if ($store) {
                 $store = Store::lockForUpdate()->findOrFail($store->id);
+                $before = app(ActivityLogger::class)->snapshot($store);
             } else {
                 $company = ! empty($data['company_id']) ? Company::findOrFail($data['company_id']) : Company::create(['name' => $data['company_name'], 'is_primary' => false]);
                 $store = empty($data['company_id']) ? $company->stores()->firstOrFail() : new Store(['company_id' => $company->id]);
@@ -61,7 +65,7 @@ class SuperAdminController extends Controller
                 $store->users()->detach($oldOwner);
             }
             $store->users()->syncWithoutDetaching([$owner->id => ['active' => true]]);
-            AccountAudit::create(['actor_id' => $request->user()->id, 'store_id' => $store->id, 'company_id' => $store->company_id, 'action' => 'platform_store_saved', 'data' => ['name' => $store->name, 'active' => $store->active, 'old_owner_id' => $oldOwner, 'owner_id' => $owner->id, 'owner_setup' => $newOwner ? (filled($data['password'] ?? null) ? 'password' : 'email') : 'existing']]);
+            AccountAudit::create(['actor_id' => $request->user()->id, 'store_id' => $store->id, 'company_id' => $store->company_id, 'action' => 'platform_store_saved', 'data' => ['name' => $store->name, 'active' => $store->active, 'old_owner_id' => $oldOwner, 'owner_id' => $owner->id, 'owner_setup' => $newOwner ? (filled($data['password'] ?? null) ? 'password' : 'email') : 'existing', 'store_created' => $storeCreated, 'owner_created' => $newOwner, 'before' => $before, 'after' => app(ActivityLogger::class)->snapshot($store), 'owner_snapshot' => $newOwner ? app(ActivityLogger::class)->snapshot($owner) : []]]);
 
             return [$store, $newOwner];
         });
