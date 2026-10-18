@@ -27,6 +27,7 @@ class SuperAdminSetup extends Command
         }
         $user = User::where('email', $email)->first();
         $accountCreated = ! $user;
+        $newAccount = null;
         if ($user) {
             if ($user->role === 'super_admin') {
                 $this->info('This account is already a Super Admin.');
@@ -51,10 +52,12 @@ class SuperAdminSetup extends Command
 
                 return self::FAILURE;
             }
-            $user = User::withoutEvents(fn () => User::create(['name' => $name, 'email' => $email, 'password' => $password, 'role' => 'super_admin', 'active' => true]));
+            $newAccount = ['name' => $name, 'email' => $email, 'password' => $password, 'role' => 'super_admin', 'active' => true];
         }
-        DB::transaction(function () use ($user, $accountCreated) {
-            $user = User::lockForUpdate()->findOrFail($user->id);
+        DB::transaction(function () use ($user, $accountCreated, $newAccount) {
+            $user = $accountCreated
+                ? User::withoutEvents(fn () => User::create($newAccount))
+                : User::lockForUpdate()->findOrFail($user->id);
             $before = $accountCreated ? [] : app(ActivityLogger::class)->snapshot($user);
             $user->forceFill(['role' => 'super_admin', 'active' => true])->save();
             foreach (Store::where('owner_id', $user->id)->lockForUpdate()->get() as $store) {

@@ -14,6 +14,7 @@ use App\Models\TaskTemplate;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\CompanyPolicyService;
+use App\Services\ExistingActivityRecorder;
 use App\Services\ReportService;
 use App\Services\ScheduledTasks;
 use App\Services\TaskWorkflow;
@@ -333,13 +334,19 @@ class ActivityLogsTest extends TestCase
     public function test_activity_tab_details_and_mutation_permissions_remain_web_super_admin_only(): void
     {
         $log = app(ActivityLogger::class)->write('task.edited', $this->task(), actor: $this->owner);
+        $this->guest()->get('/super-admin/activity-logs/'.$log->id)->assertRedirect('/login');
+        $this->get('/super-admin/activity-logs/9223372036854775806')->assertRedirect('/login');
         foreach ([$this->owner, $this->manager, $this->worker] as $user) {
             $this->web($user)->get('/super-admin/activity-logs')->assertForbidden();
             $this->get('/super-admin/activity-logs/'.$log->id)->assertForbidden();
+            $this->get('/super-admin/activity-logs/9223372036854775806')->assertForbidden();
         }
         $this->web($this->platform)->get('/super-admin')->assertOk()->assertSee('Activity logs');
         $this->get('/super-admin/activity-logs')->assertOk()->assertSee('View details')->assertHeader('Cache-Control', 'no-store, private');
         $this->get('/super-admin/activity-logs/'.$log->id)->assertOk()->assertSee('Before and after')->assertSee('READ-ONLY EVENT');
+        foreach (['0', '9223372036854775806', '999999999999999999999999999999'] as $missing) {
+            $this->get('/super-admin/activity-logs/'.$missing)->assertNotFound();
+        }
         foreach (['POST', 'PATCH', 'DELETE'] as $method) {
             $this->call($method, '/super-admin/activity-logs/'.$log->id)->assertStatus(405);
         }
@@ -544,5 +551,39 @@ class ActivityLogsTest extends TestCase
         } catch (\RuntimeException) {
             $this->assertTrue(Schema::hasTable('activity_logs'));
         }
+    }
+
+    public function test_a_successful_retry_does_not_inherit_a_previous_validation_failure(): void
+    {
+        $this->web($this->owner)->post('/admin/reminders', ['reminder_minutes' => 'invalid'])->assertSessionHasErrors('reminder_minutes');
+        $this->post('/admin/reminders', ['reminder_minutes' => 60])->assertRedirect();
+        $this->assertSame(1, ActivityLog::where('action', 'settings.reminders_changed')->where('result', 'success')->count());
+        $this->assertSame(1, ActivityLog::where('action', 'settings.reminders_changed')->where('result', 'failure')->count());
+        $this->assertSame(60, $this->event('settings.reminders_changed')->after_values['reminder_minutes']);
+    }
+
+    public function test_mobile_login_does_not_leave_a_token_when_success_auditing_fails(): void
+    {
+        $logger = $this->mock(ActivityLogger::class);
+        $logger->shouldReceive('write')->andThrow(new \RuntimeException('Simulated activity storage failure'));
+        $logger->shouldReceive('loginFailure')->andReturnNull();
+        $this->guest()->postJson(self::API.'/login', ['email' => $this->worker->email, 'password' => self::PASSWORD, 'device_name' => 'Audit outage test'])->assertStatus(500);
+        $this->assertSame(0, $this->worker->tokens()->count());
+        $this->assertSame(0, ActivityLog::where('action', 'account.login')->where('result', 'success')->count());
+    }
+
+    public function test_super_admin_setup_rolls_back_the_new_account_when_auditing_fails(): void
+    {
+        $this->mock(ExistingActivityRecorder::class)->shouldReceive('account')->andThrow(new \RuntimeException('Simulated activity storage failure'));
+        try {
+            $this->artisan('tasksure:super-admin', ['email' => 'atomic-platform@activity.test', 'name' => 'Atomic platform operator'])
+                ->expectsQuestion('New password (12+ characters, mixed case and number)', self::PASSWORD)
+                ->expectsQuestion('Confirm password', self::PASSWORD)->run();
+            $this->fail('The simulated audit failure should fail setup.');
+        } catch (\RuntimeException $error) {
+            $this->assertSame('Simulated activity storage failure', $error->getMessage());
+        }
+        $this->assertDatabaseMissing('users', ['email' => 'atomic-platform@activity.test']);
+        $this->assertSame(0, ActivityLog::where('action', 'account.created')->count());
     }
 }

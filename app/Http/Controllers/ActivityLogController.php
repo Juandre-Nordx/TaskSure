@@ -54,9 +54,13 @@ class ActivityLogController extends Controller
         ])->header('Cache-Control', 'private, no-store');
     }
 
-    public function show(Request $request, ActivityLog $log)
+    public function show(Request $request, string $log)
     {
         abort_unless($request->user()->role === 'super_admin', 403);
+        // Look up an event only after authorization, so other roles cannot probe its existence.
+        $id = filter_var($log, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        abort_if($id === false, 404);
+        $log = ActivityLog::findOrFail($id);
 
         return response()->view('platform.activity-details', ['log' => $log])->header('Cache-Control', 'private, no-store');
     }

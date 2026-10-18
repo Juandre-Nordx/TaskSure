@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\CompanyPolicyService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -24,8 +25,12 @@ class MobileAuthController extends Controller
         abort_unless(in_array($user->role, User::ASSIGNEE_ROLES), 403, 'Managers and employees can use this app. Store owners use the web dashboard.');
         abort_unless($user->stores()->wherePivot('active', true)->exists(), 403, 'Store access is required. Contact your administrator.');
         $profile = $this->profile($user);
-        $token = $user->createToken('mobile:'.$v['device_name'], ['mobile', $user->role], now()->addDays(30));
-        app(ActivityLogger::class)->write('account.login', $user, actor: $user);
+        $token = DB::transaction(function () use ($user, $v) {
+            $token = $user->createToken('mobile:'.$v['device_name'], ['mobile', $user->role], now()->addDays(30));
+            app(ActivityLogger::class)->write('account.login', $user, actor: $user);
+
+            return $token;
+        });
 
         return response()->json($profile + ['token' => $token->plainTextToken, 'expires_at' => $token->accessToken->expires_at->toIso8601String()])->header('Cache-Control', 'no-store');
     }
