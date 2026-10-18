@@ -83,6 +83,8 @@ For MySQL compatibility checks use the same command with `DB_CONNECTION=mysql` a
 
 Every screen/export uses the same selected cohort: tasks **assigned/created**, **currently due**, **completed** or **reviewed** in the selected inclusive SAST date range. Completed counts use the current Completed state; Reviewed and Not reviewed are separate subsets. Open = Assigned or In progress. Reopening returns work to Assigned and resets its current completion/review fields while retaining attempts and review history. Cancelled tasks remain in selected counts/details and are excluded from punctuality denominators. First-completion on-time rate uses non-cancelled tasks with a first recorded completion. Each completion retains its original deadline; review time does not affect punctuality. Unknown historical timestamps remain unknown and do not match date filters. Ownership follows the currently responsible manager/employee; reassignments remain in history. Counts are not a productivity score or hours worked.
 
+Reports also include staff and inclusive SAST deadline-range filters, All / Still overdue / Completed late, current overdue totals and a per-occurrence deadline/completion table. PDF and Excel use the same filtered cohort. PDFs include company/store, reporting periods, totals and printable discussion/follow-up spaces. See [overdue reporting](docs/OVERDUE-REPORTS.md) for definitions and release steps; no new migration or Android rebuild is needed.
+
 The [completion/review release guide](docs/COMPLETION-REVIEW-RELEASE.md) explains scope, legacy conversion, controlled Railway migration and Android updates.
 
 ## External reminders
