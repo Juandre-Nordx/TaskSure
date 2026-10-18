@@ -39,7 +39,9 @@ class ScheduledTasks
                     $t = Task::firstOrCreate(['task_template_id' => $p->id, 'occurrence_date' => $date], ['store_id' => $p->store_id, 'employee_id' => $p->employee_id, 'creator_id' => $p->creator_id, 'category_id' => $p->category_id, 'title' => $p->title, 'instructions' => $p->instructions, 'area' => $p->area, 'priority' => $p->priority, 'required_evidence' => $p->required_evidence, 'due_at' => $due, 'scheduled_at' => $start]);
                     if ($t->wasRecentlyCreated) {
                         $count++;
-                        $t->activities()->create(['user_id' => $p->creator_id, 'type' => 'assigned', 'body' => 'Recurring occurrence generated.']);
+                        $activity = $t->activities()->make(['user_id' => $p->creator_id, 'type' => 'assigned', 'body' => 'Recurring occurrence generated.']);
+                        $activity->auditSystem = true;
+                        $activity->save();
                         $this->alerts->send($p->employee, $t, 'assigned', 'You were assigned '.$t->title, 'assigned:'.$t->id);
                     }
                     $p->update(['next_date' => $p->followingDate($date)]);

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CompanyPolicyAdminController;
@@ -44,6 +45,8 @@ Route::middleware('guest')->group(function () {
 });
 Route::middleware(['auth', ActiveUser::class, SuperAdmin::class])->prefix('super-admin')->group(function () {
     Route::get('/', [SuperAdminController::class, 'index']);
+    Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+    Route::get('/activity-logs/{log}', [ActivityLogController::class, 'show'])->whereNumber('log');
     Route::get('/stores/create', [SuperAdminController::class, 'edit']);
     Route::get('/stores/{store}/edit', [SuperAdminController::class, 'edit']);
     Route::post('/stores', [SuperAdminController::class, 'save']);

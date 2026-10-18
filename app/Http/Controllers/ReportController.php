@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Services\ActivityLogger;
 use App\Services\ReportService;
 use Dompdf\Dompdf;
 use Illuminate\Http\Request;
@@ -22,13 +23,19 @@ class ReportController extends Controller
         ]);
         $data = $service->run($r->user(), $filters);
         $format = $r->validate(['format' => 'nullable|in:pdf,xlsx'])['format'] ?? null;
+        $logger = app(ActivityLogger::class);
+        $actor = $r->user();
+        $record = ['type' => 'report', 'label' => 'Team work report'];
+        $details = $filters + ['format' => $format ?? 'web', 'selected_tasks' => $data['totals']['selected'], 'still_overdue' => $data['totals']['still_overdue'], 'completed_late' => $data['totals']['completed_late']];
         if ($format === 'pdf') {
             $pdf = new Dompdf(['isRemoteEnabled' => false]);
             $pdf->loadHtml(view('reports.pdf', $data)->render());
             $pdf->setPaper('A4', 'landscape');
             $pdf->render();
+            $output = $pdf->output();
+            $logger->write('report.pdf_exported', $record, details: $details, actor: $actor, store: $data['workspace']);
 
-            return response($pdf->output(), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'attachment; filename="tasksure-report.pdf"']);
+            return response($output, 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'attachment; filename="tasksure-report.pdf"']);
         }if ($format === 'xlsx') {
             $book = new Spreadsheet;
             foreach (['summary' => 'Comparison', 'rows' => 'Task details'] as $key => $title) {
@@ -64,9 +71,20 @@ class ReportController extends Controller
                 $meta->setCellValueExplicit('B'.$row, (string) $value, DataType::TYPE_STRING);
             }
 
-            return response()->streamDownload(fn () => (new Xlsx($book))->save('php://output'), 'tasksure-report.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+            return response()->streamDownload(function () use ($book, $logger, $record, $details, $actor, $data) {
+                try {
+                    (new Xlsx($book))->save('php://output');
+                    $logger->write('report.xlsx_exported', $record, details: $details, actor: $actor, store: $data['workspace']);
+                } catch (\Throwable $error) {
+                    $logger->write('report.xlsx_exported', $record, details: ['http_status' => 500, 'reason' => 'export_failed'], actor: $actor, store: $data['workspace'], result: 'failure');
+                    throw $error;
+                }
+            }, 'tasksure-report.xlsx', ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
         }
 
-        return view('reports.index', $data + ['employees' => $r->user()->visibleEmployees()->get(), 'categories' => Category::forStore($r->user())->get()]);
+        $response = response()->view('reports.index', $data + ['employees' => $r->user()->visibleEmployees()->get(), 'categories' => Category::forStore($r->user())->get()]);
+        $logger->write('report.generated', $record, details: $details, actor: $actor, store: $data['workspace']);
+
+        return $response;
     }
 }

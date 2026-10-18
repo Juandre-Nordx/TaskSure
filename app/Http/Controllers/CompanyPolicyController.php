@@ -22,6 +22,11 @@ class CompanyPolicyController extends Controller
     {
         $data = $request->validate(['policy_version_id' => 'required|integer|min:1', 'acknowledged' => 'required|accepted', 'company_id' => 'prohibited', 'user_id' => 'prohibited', 'acknowledged_at' => 'prohibited']);
         $result = $service->acknowledge($request->user(), (int) $data['policy_version_id']);
+        if (! $result['acknowledged']) {
+            $request->attributes->set('activity_operation_failed', true);
+        } else {
+            $request->attributes->set('activity_request_succeeded', true);
+        }
         if ($request->is('api/*') || $request->expectsJson()) {
             return response()->json($result, $result['acknowledged'] ? 200 : 423)->header('Cache-Control', 'private, no-store');
         }

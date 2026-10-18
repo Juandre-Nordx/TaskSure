@@ -184,8 +184,8 @@ class TaskController extends Controller
                 Gate::authorize('work', $t);
                 abort_unless(in_array($t->status, ['assigned', 'in_progress']), 422);
                 $path = $file->store('evidence', 'evidence');
-                $t->attachments()->create(['user_id' => $r->user()->id, 'path' => $path, 'original_name' => mb_substr(basename(str_replace('\\', '/', $file->getClientOriginalName())), 0, 180), 'mime' => $mime, 'kind' => $kind, 'size' => $file->getSize()]);
-                $this->workflow->log($t, $r->user(), 'upload', 'Evidence uploaded.');
+                $attachment = $t->attachments()->create(['user_id' => $r->user()->id, 'path' => $path, 'original_name' => mb_substr(basename(str_replace('\\', '/', $file->getClientOriginalName())), 0, 180), 'mime' => $mime, 'kind' => $kind, 'size' => $file->getSize()]);
+                $this->workflow->log($t, $r->user(), 'upload', 'Evidence uploaded.', ['attachment_id' => $attachment->id]);
             });
         } catch (\Throwable $e) {
             if ($path) {

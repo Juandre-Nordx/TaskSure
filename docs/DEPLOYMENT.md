@@ -18,6 +18,8 @@ For multiple independent policies and the staff library, follow [the coordinated
 
 For selected-date recurrence, follow [the Specific dates release](SPECIFIC-DATE-TASKS.md#controlled-railway-release). It adds one forward migration and requires the scheduler on the same source before new schedules are created, plus Android 1.9 for the new controls.
 
+For platform activity logs, follow [ACTIVITY-LOGS.md](ACTIVITY-LOGS.md#controlled-railway-release). Apply its new-table migration before releasing web/worker/scheduler. No mobile rebuild is required.
+
 ## Deployment checklist
 
 1. **Open your Railway project and check PostgreSQL.** Use your existing PostgreSQL service in the same project/environment. Create one with **New → Database → PostgreSQL** only if you do not already have one. Back up an existing database before migrations. The examples use the service name `Postgres`; replace that name in variable references if yours differs.

@@ -5,7 +5,7 @@
 @include('partials.brand-icons')
 @vite(['resources/css/app.css','resources/js/app.js'])</head><body>
 <div class="shell"><aside class="sidebar"><a class="brand" href="/"><img class="brandmark" src="{{ asset('tasksure-icon.svg') }}" alt="" width="35" height="35">TaskSure<span style="color:#a8cf87">.</span></a><div><p class="navlabel">STORE OPERATIONS</p><nav>
-@if(auth()->user()->role==='super_admin')<a class="navlink" href="/super-admin">Stores</a><a class="navlink" href="/super-admin/stores/create">Create store</a>@else
+@if(auth()->user()->role==='super_admin')<a class="navlink" href="/super-admin">Stores</a><a class="navlink" href="/super-admin/activity-logs">Activity logs</a><a class="navlink" href="/super-admin/stores/create">Create store</a>@else
 @foreach(['/' => ['◫','Overview'], '/tasks' => ['☷',auth()->user()->isSupervisor()?'Team tasks':'My tasks'], '/calendar'=>['▦','Calendar'], '/reports'=>['↗','Reports'], '/notifications'=>['♧','Notifications']] as $url=>$item)<a class="navlink {{ request()->getPathInfo()===$url && !($url==='/tasks' && request('scope')==='my')?'current':'' }}" href="{{ $url }}"><span class="navicon">{{ $item[0] }}</span>{{ $item[1] }}</a>
 @endforeach
 @if(auth()->user()->role==='manager')<a class="navlink {{ request()->is('tasks') && request('scope')==='my'?'current':'' }}" href="/tasks?scope=my">My tasks</a>@endif

@@ -21,7 +21,16 @@ class TaskWorkflow
 
     public function log(Task $t, User $u, string $type, string $body, array $data = []): void
     {
-        $t->activities()->create(['user_id' => $u->id, 'type' => $type, 'body' => $body, 'data' => $data]);
+        $logger = app(ActivityLogger::class);
+        $activity = $t->activities()->make(['user_id' => $u->id, 'type' => $type, 'body' => $body, 'data' => $data]);
+        $keys = array_flip(array_keys($t->getChanges()));
+        if (isset($keys['employee_id'])) {
+            $keys['employee_name'] = true;
+        }
+        $activity->auditBefore = $type === 'assigned' ? [] : array_intersect_key($logger->snapshot($t, true), $keys);
+        $activity->auditAfter = $type === 'assigned' ? $logger->snapshot($t) : array_intersect_key($logger->snapshot($t), $keys);
+        $activity->setRelation('task', $t);
+        $activity->save();
     }
 
     public function start(Task $task, User $u): void
@@ -78,8 +87,9 @@ class TaskWorkflow
             $this->require($t->status === 'completed', 'Only completed tasks can be reopened.');
             $this->require(filled(trim($reason)), 'Explain the corrections needed.');
             $review = $t->reviews()->create(['submission_id' => $t->current_completion_id, 'reviewer_id' => $u->id, 'action' => 'reopened', 'note' => $reason, 'occurred_at' => now()]);
-            $this->log($t, $u, 'reopened', $reason, ['review_id' => $review->id, 'submission_id' => $t->current_completion_id, 'previous_started_at' => $t->started_at?->toIso8601String(), 'previous_completed_at' => $t->completed_at?->toIso8601String(), 'previous_completed_by_id' => $t->completed_by_id]);
+            $previous = ['review_id' => $review->id, 'submission_id' => $t->current_completion_id, 'previous_started_at' => $t->started_at?->toIso8601String(), 'previous_completed_at' => $t->completed_at?->toIso8601String(), 'previous_completed_by_id' => $t->completed_by_id];
             $t->update(['status' => 'assigned', 'started_at' => null, 'completed_at' => null, 'completed_by_id' => null, 'current_completion_id' => null, 'review_status' => 'not_reviewed', 'reviewed_at' => null, 'reviewer_id' => null]);
+            $this->log($t, $u, 'reopened', $reason, $previous);
             $this->alerts->send($t->employee, $t, 'reopened', $t->title.' was reopened — '.$reason, 'task-reopen:'.$review->id);
         });
     }

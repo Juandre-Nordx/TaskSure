@@ -11,6 +11,7 @@ class ActiveUser
     public function handle(Request $request, Closure $next)
     {
         if (! $request->user()?->active) {
+            $request->attributes->set('activity_actor', $request->user());
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
