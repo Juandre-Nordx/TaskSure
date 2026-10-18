@@ -40,6 +40,8 @@ Structured allowlists exclude passwords/hashes, access/refresh/push tokens, cook
 
 Task/account/policy records feed activity logging in their existing transactions. Rolled-back task changes do not leave successful activity entries. Source identifiers prevent duplicate import/replay entries. Successful logout, publication and confirmation redirects are not misclassified as failures.
 
+Mobile login creates its token and successful audit event in one transaction, so an audit-storage failure cannot leave an unused login token. New platform-account setup likewise rolls back the account if auditing fails. Activity details are looked up only after Super Admin authorization, preventing other roles from probing whether a particular event exists.
+
 Full tracking starts after the updated server processes are installed. Optional historical import reads existing **account audits, task activity rows and policy acknowledgements** only:
 
 ```sh
